@@ -1,0 +1,21 @@
+# agent-workflow-kit — repo settings. Repo-owned: `update` never touches this file.
+
+profile: shared            # solo | shared | external
+team_language: en          # language of repo-visible human text (commit/issue/PR titles, README)
+
+protected_branches:
+  - main
+
+issue_types:
+  - feature
+  - fix
+  - docs
+  - chore
+  - refactor
+  - perf
+
+# one umbrella issue per member's workstream; concrete tasks are sub-issues under it
+umbrella_issues: per-member   # per-member | off
+
+# docs that must change together; entries like: "docs/a.md <-> docs/b.md"
+doc_pairs: []

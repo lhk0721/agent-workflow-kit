@@ -1,0 +1,7 @@
+#!/bin/sh
+# agent-workflow-kit backstop — system-owned
+command -v node >/dev/null 2>&1 || {
+  echo "[agent-kit] node not found — run onboarding (docs/agent-workflow/onboarding.md)"; exit 1; }
+set -e
+node .githooks/checks/management-doc.mjs
+node .githooks/checks/doc-pairs.mjs

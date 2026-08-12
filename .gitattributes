@@ -1,0 +1,2 @@
+# sh hook shims are copied verbatim into target repos — CRLF breaks /bin/sh
+hooks/** text eol=lf
