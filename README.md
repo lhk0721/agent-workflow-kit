@@ -60,3 +60,7 @@ don't have Node yet; the agent installs Node for the hooks during onboarding eit
 | System-owned | `CLAUDE.md`, AGENTS.md kernel block, `docs/agent-workflow/*`, `.githooks/*` | Yes — overwritten |
 | Repo-owned | `agent-system.yaml`, AGENTS.md slots, `docs/issues/**` | Never |
 | Personal | reply language etc. in `~/.claude/CLAUDE.md` | Outside the system |
+
+---
+
+Maintained by [@lhk0721](https://github.com/lhk0721).
