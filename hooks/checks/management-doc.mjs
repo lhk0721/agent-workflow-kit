@@ -24,8 +24,10 @@ if (cfg.protected_branches.includes(br)) {
 const issue = br.match(/^(\d+)-/);
 if (!issue) process.exit(0); // non-issue branch: not governed
 
-// management docs live exactly one level under docs/issues/ (deeper paths are attachments)
-const docRe = /^docs\/issues\/[^/]+\/((?:\d+)-[^/]+)\.md$/;
+// management docs live exactly one level under docs/issues/ (deeper paths are attachments).
+// umbrella/ is exempt: umbrella docs have no branch of their own and take their
+// sub-issue rows from sub-issue branches.
+const docRe = /^docs\/issues\/(?!umbrella\/)[^/]+\/((?:\d+)-[^/]+)\.md$/;
 const mgmtDocs = files.map((f) => f.match(docRe)).filter(Boolean);
 
 const foreign = mgmtDocs.filter((m) => m[1] !== br);
