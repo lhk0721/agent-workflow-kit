@@ -26,6 +26,12 @@
   hook means the workflow was missed earlier; fix the cause, not the check.
   (`AGENT_KIT_SKIP=1` exists for deliberate, user-approved exceptions only, e.g. the
   kit install commit.)
+- Multi-line commit or PR bodies: write the body to a file first, then
+  `git commit -F <file>` / `gh pr create --body-file <file>`. NEVER inline it via
+  heredoc or command substitution (`git commit -m "$(cat <<'EOF' ...)"`) —
+  worktree-isolated agent sessions statically verify that each Bash command stays
+  inside the worktree, and heredoc/substitution forms are refused as
+  "too complex to verify" (Claude Code worktree isolation guard, v2.1.222+).
 
 ## Push & PR
 
