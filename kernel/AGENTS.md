@@ -18,7 +18,7 @@
 
 - NEVER edit issue-tracked files while HEAD is a protected branch (`agent-system.yaml: protected_branches`).
 - One branch, one working directory. New issue: `git worktree add ../<repo>-<issue> -b <branch> main`.
-- NEVER `git checkout` inside a worktree. After merge, remove the worktree and delete the branch.
+- NEVER `git checkout` inside a worktree. After merge, run the post-PR cleanup gate (`docs/agent-workflow/git-rules.md`).
 
 ## Pre-Commit Review Gate
 
@@ -51,7 +51,8 @@
 ## Recent Active Context (pointer-only slot)
 
 <!-- One line per active work item: name + management doc path + one-line summary.
-     Details live in the doc's "Current State" block, never here. -->
+     Details live in the doc's "Current State" block, never here.
+     Remove the line in post-PR cleanup when the PR merges or the issue closes. -->
 - (none)
 
 ## Canon (repo slot)
@@ -61,4 +62,11 @@
 ## Domain Rules (repo slot)
 
 <!-- Repo-specific rules. Kit updates never touch this section. -->
+- (none)
+
+## Repo Tools (repo slot)
+
+<!-- Pointers to repo-installed agent tools and WHEN to reach for them, e.g.
+     "graphify-out/ exists — treat codebase/architecture questions as graphify
+     queries first". Kit updates never touch this section. -->
 - (none)

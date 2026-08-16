@@ -12,7 +12,7 @@
   `gh issue create` → `git worktree add ../<repo>-<issue> -b <branch> main` → management
   document → edits → commit.
 - NEVER `git checkout` inside a worktree — its directory name must keep matching its branch.
-  After the PR merges: `git worktree remove ../<repo>-<issue>` and delete the branch.
+  After the PR reaches a terminal state, run the post-PR cleanup gate (below).
 - Before creating a branch for an existing issue, check both local (`git branch --list '<issue>-*'`)
   AND remote (`git branch -r --list '*<issue>-*'`) — a squash-merged remote branch may still
   hold commits the local list does not show.
@@ -43,3 +43,34 @@
     (force push still blocked).
   - `shared` — single repo, branch + PR; direct push to protected branches blocked.
   - `external` — fork + upstream; contribute via PR from the fork, keep the fork synced.
+
+## Post-PR cleanup gate
+
+Run after every PR reaches a terminal state — merged or closed without merge.
+NEVER clean up from memory: refresh state first with `git fetch --prune`,
+`git worktree list`, `git branch --list`, and the GitHub issue/PR state.
+
+- Verify the issue actually closed (`Closes #<issue>` in the PR body handles this
+  on merge). If it is still open, close it or record the blocker.
+- Remove the worktree only after `git status --porcelain=v1 -uall` prints nothing
+  inside it: `git worktree remove ../<repo>-<issue>`.
+- Delete the local branch only after
+  `git log --right-only --cherry-pick --oneline origin/main...<branch>` prints
+  nothing — after a squash merge `git branch -d` protects nothing; this check does.
+- Delete the remote branch (`git push origin --delete <branch>`). Better: enable
+  GitHub "Automatically delete head branches" once per repo (Settings → General),
+  so merges clean up after themselves.
+- Remove the work item's pointer line from `AGENTS.md` Recent Active Context
+  (see `documentation-rules.md`).
+- Finish by showing `git worktree list`, the remaining branches, and the issue/PR
+  state, so the cleanup is auditable.
+
+## CI gate
+
+- A repo with a protected branch should run a PR-validation workflow that executes
+  the same commands the rulebook and repo docs tell the agent to run locally.
+  CI is the machine copy of the documented gate, not a second rulebook.
+- Keep the default PR gate balanced: typecheck, lint/format, tests, machine checks.
+  NEVER deploy, publish artifacts, or require production/runtime secrets on the
+  default PR path. Add heavier lanes only when the risk changes.
+- Template: `templates.md` "PR validation workflow".
