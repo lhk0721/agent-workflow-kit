@@ -56,3 +56,36 @@ Sub-issue of #<umbrella-issue>.
 
 <body: why + what changed + how verified — English>
 ```
+
+## PR validation workflow — `.github/workflows/pr-validation.yml`
+
+Replace the gate steps with the repo's own documented local gate commands
+(see `git-rules.md` "CI gate"). Keep the frame: cancel superseded runs,
+read-only permissions, a timeout, and no secrets.
+
+```yaml
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # <toolchain setup: actions/setup-node / astral-sh/setup-uv / ...>
+      # <locked install: npm ci / uv sync --locked ...>
+      # <the repo's documented gate commands: typecheck, lint, tests, machine checks>
+```

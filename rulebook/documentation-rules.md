@@ -12,6 +12,11 @@
 - Keep a `## Current State` block per document — the entry point for the next session.
   `AGENTS.md` Recent Active Context holds pointers only (name + path + one line);
   details never live in `AGENTS.md`.
+- Recent Active Context lifecycle: add the pointer line when issue work starts;
+  remove it in the post-PR cleanup gate (`git-rules.md`) when the PR merges or the
+  issue closes. The slot lists ACTIVE work only — its size is bounded by work in
+  progress, never by history. Finished work stays discoverable through
+  `docs/issues/` and the Master Registry, not here.
 - Paths in documents are repo-relative. Never absolute paths.
 
 ## Umbrella issues (`agent-system.yaml: umbrella_issues: per-member`)
