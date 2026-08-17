@@ -32,3 +32,7 @@
 - Hooks (`.githooks/`) are backstops, not the rule source. The document precedes the
   file change; a tripped hook means that order was already violated. Fix the cause
   (write the doc, get on the right branch), then commit again.
+- Repo-specific pre-commit checks live in `.githooks/checks/repo-*.mjs` — that name
+  prefix is the repo's namespace: the kit never ships `repo-*` files, so `update`
+  never touches them. Each is a plain Node script; nonzero exit blocks the commit.
+  A check that should only warn prints its reminder and exits 0.

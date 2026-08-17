@@ -5,3 +5,9 @@ command -v node >/dev/null 2>&1 || {
 set -e
 node .githooks/checks/management-doc.mjs
 node .githooks/checks/doc-pairs.mjs
+# repo-owned checks: .githooks/checks/repo-*.mjs is the repo's namespace.
+# The kit never ships files named repo-*, so updates never touch them.
+for f in .githooks/checks/repo-*.mjs; do
+  [ -e "$f" ] || continue
+  node "$f"
+done
