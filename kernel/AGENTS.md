@@ -19,6 +19,7 @@
 - NEVER edit issue-tracked files while HEAD is a protected branch (`agent-system.yaml: protected_branches`).
 - One branch, one working directory. New issue: `git worktree add ../<repo>-<issue> -b <branch> main`.
 - NEVER `git checkout` inside a worktree. After merge, run the post-PR cleanup gate (`docs/agent-workflow/git-rules.md`).
+- When reporting files to the user, print absolute paths (drive/root included) — a worktree sits outside the directory the user's editor has open, so relative paths are not clickable there.
 
 ## Pre-Commit Review Gate
 
