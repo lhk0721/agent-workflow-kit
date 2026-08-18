@@ -24,11 +24,19 @@ completely new to Claude Code: do every step FOR them, confirm before installing
 
 - `git config core.hooksPath .githooks`
 
-## 4. Personal reply language
+## 4. Personal reply language & style
 
-- Ask which language the user wants replies and reports in (`human_language`).
-- Record it in their personal global instructions `~/.claude/CLAUDE.md` (create if missing):
-  `Reply and report in <language>. Repo-visible titles follow the repo's team_language.`
+- Ask which language the user wants replies and reports in (`human_language`), AND
+  whether they want a specific style — e.g. plain easy wording, no translation-ese,
+  technical terms kept in English.
+- Record BOTH in their personal global instructions `~/.claude/CLAUDE.md` (create if missing):
+  `Reply and report in <language>. <style, e.g.: Use plain, easy wording; no
+  translation-ese; keep technical terms in English.> Repo-visible titles follow
+  the repo's team_language.`
+- Language alone does not carry style: the agent works in English (docs, work logs,
+  commit bodies), and a final report translated from those notes reads as
+  translation-ese. If the user wants plain wording, it must be written here —
+  rewrite reports in the user's language from scratch, never translate working notes.
 - This is personal and lives outside the repo. Repo-visible text keeps following
   `team_language` in `agent-system.yaml`.
 

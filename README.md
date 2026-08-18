@@ -57,9 +57,9 @@ don't have Node yet; the agent installs Node for the hooks during onboarding eit
 
 | Scope | Files | Update touches? |
 | --- | --- | --- |
-| System-owned | `CLAUDE.md`, AGENTS.md kernel block, `docs/agent-workflow/*`, `.githooks/*` | Yes — overwritten |
+| System-owned | `CLAUDE.md` (only when it starts with the kit marker comment), AGENTS.md kernel block, `docs/agent-workflow/*`, `.githooks/*` | Yes — overwritten |
 | Repo-owned | `agent-system.yaml`, AGENTS.md slots, `docs/issues/**` | Never |
-| Personal | reply language etc. in `~/.claude/CLAUDE.md` | Outside the system |
+| Personal | reply language & style in `~/.claude/CLAUDE.md` | Outside the system |
 
 ---
 

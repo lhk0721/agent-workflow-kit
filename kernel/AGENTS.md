@@ -37,7 +37,7 @@
 ## Output Language
 
 - Agent-read text is English: this file, the rulebook, management docs, work logs, issue/PR bodies, commit bodies.
-- Replies and reports to the user follow their personal `human_language` (set during onboarding, lives in `~/.claude/CLAUDE.md`).
+- Replies and reports to the user follow their personal `human_language` AND reply style (set during onboarding, lives in `~/.claude/CLAUDE.md`). If that file is missing, run onboarding §4 before long reports.
 - Repo-visible titles (commit/issue/PR titles, README) follow `team_language` in `agent-system.yaml`.
 
 ## Rulebook
