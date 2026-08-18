@@ -53,7 +53,12 @@ copyDir('rulebook', 'docs/agent-workflow');
 copyDir('hooks', '.githooks');
 
 const claudePath = join(target, 'CLAUDE.md');
-if (!existsSync(claudePath) || readFileSync(claudePath, 'utf8').includes('agent-workflow-kit')) {
+// kit-managed = the file STARTS with the kernel marker comment (present since v0.1.0).
+// A substring test is wrong: repos legitimately mention the kit name in their own
+// CLAUDE.md prose, and a substring match would silently clobber that file on update.
+const kitManaged = existsSync(claudePath) &&
+  readFileSync(claudePath, 'utf8').trimStart().startsWith('<!-- agent-workflow-kit');
+if (!existsSync(claudePath) || kitManaged) {
   copy('kernel/CLAUDE.md', 'CLAUDE.md');
 } else {
   console.warn('WARN: CLAUDE.md exists and is not kit-managed — left untouched. Add "Read AGENTS.md first" to it yourself.');
