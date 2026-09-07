@@ -32,6 +32,10 @@ The installer copies system-owned files, seeds repo-owned ones (never overwrites
 sets `git config core.hooksPath .githooks`, and writes `agent-system.lock.json`
 (version pin + manifest). It stages the hook files to preserve their executable bit.
 
+It also installs the Korean writing skills to `.claude/skills/`. If the installer warns
+that `.claude/` is git-ignored, ask the user whether to un-ignore `.claude/skills/` —
+otherwise the skills stay in this clone and teammates never get them.
+
 ## 4. Configure + verify
 
 - Write the interview answers into `agent-system.yaml`.
@@ -47,6 +51,9 @@ sets `git config core.hooksPath .githooks`, and writes `agent-system.lock.json`
   deliberate escape hatch: `AGENT_KIT_SKIP=1 git commit -m "chore: install agent-workflow-kit v<version>"`.
   This is the one legitimate use of the hatch — normal work never needs it.
 - Add two lines to the target repo README: clone command + "run `claude`, say 'run onboarding'".
+- If the repo writes Korean, offer to seed `ko-writing.config.md` / `ui-text.config.md` /
+  `ui-text.glossary.md` from the templates under `.claude/skills/*/assets/`
+  (repo-owned; see `docs/agent-workflow/skills.md`).
 
 ## Update / Uninstall
 

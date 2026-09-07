@@ -51,6 +51,14 @@ const seedText = (toRel, content) => {
 // ---- system-owned (overwritten) ----
 copyDir('rulebook', 'docs/agent-workflow');
 copyDir('hooks', '.githooks');
+copyDir('skills', '.claude/skills');
+
+// Skills only reach teammates if they are committed. A repo that ignores .claude/
+// installs them for this clone only, so say it out loud instead of failing silently.
+try {
+  execFileSync('git', ['check-ignore', '-q', '.claude/skills'], { cwd: target, stdio: 'ignore' });
+  console.warn('WARN: .claude/ is git-ignored here — skills install for this clone only. Un-ignore .claude/skills/ to share them with the team.');
+} catch {}
 
 const claudePath = join(target, 'CLAUDE.md');
 // kit-managed = the file STARTS with the kernel marker comment (present since v0.1.0).

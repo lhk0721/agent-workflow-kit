@@ -20,6 +20,14 @@ for (const h of ['pre-commit', 'commit-msg', 'pre-push']) {
   check(`.githooks/${h}`, existsSync(`.githooks/${h}`), 'reinstall the kit (install.mjs)');
 }
 
+for (const s of ['ko-ui-text', 'ko-writing']) {
+  check(`.claude/skills/${s}/SKILL.md`, existsSync(`.claude/skills/${s}/SKILL.md`), 'reinstall the kit (install.mjs)');
+}
+try {
+  git('check-ignore', '-q', '.claude/skills');
+  console.log('WARN .claude/ is git-ignored — skills work in this clone but are not shared with the team');
+} catch {}
+
 const cfg = loadConfig();
 check(
   `agent-system.yaml (profile=${cfg.profile}, protected=[${cfg.protected_branches.join(', ')}], umbrella=${cfg.umbrella_issues})`,

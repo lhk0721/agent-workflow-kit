@@ -11,6 +11,9 @@ so fixes flow from here to every repo instead of drifting per-copy.
 - `.githooks/` backstops in Node — 5 checks: management doc (branch = doc), sibling branch,
   doc pairs, commit message format, protected push
 - `agent-system.yaml` (repo settings) + `agent-system.lock.json` (version pin + install manifest)
+- `.claude/skills/` Korean writing skills — `ko-writing` (reports, docs, explanations) and
+  `ko-ui-text` (screen strings); they load themselves when the task matches
+  (see `docs/agent-workflow/skills.md`)
 
 ## Install into your repo (owner, once per repo)
 
@@ -57,8 +60,8 @@ don't have Node yet; the agent installs Node for the hooks during onboarding eit
 
 | Scope | Files | Update touches? |
 | --- | --- | --- |
-| System-owned | `CLAUDE.md` (only when it starts with the kit marker comment), AGENTS.md kernel block, `docs/agent-workflow/*`, `.githooks/*` | Yes — overwritten |
-| Repo-owned | `agent-system.yaml`, AGENTS.md slots, `docs/issues/**` | Never |
+| System-owned | `CLAUDE.md` (only when it starts with the kit marker comment), AGENTS.md kernel block, `docs/agent-workflow/*`, `.githooks/*`, `.claude/skills/ko-writing/*`, `.claude/skills/ko-ui-text/*` | Yes — overwritten |
+| Repo-owned | `agent-system.yaml`, AGENTS.md slots, `docs/issues/**`, other `.claude/skills/*`, `ko-writing.config.md`, `ui-text.config.md`, `ui-text.glossary.md` | Never |
 | Personal | reply language & style in `~/.claude/CLAUDE.md` | Outside the system |
 
 ---

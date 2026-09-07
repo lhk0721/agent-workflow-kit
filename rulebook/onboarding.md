@@ -54,3 +54,6 @@ completely new to Claude Code: do every step FOR them, confirm before installing
   tasks hang under it as sub-issues.
 - Hooks are backstops — if one blocks a commit, the workflow order was missed; the
   agent fixes the cause, the user does not need to bypass anything.
+- Korean writing skills: if the user writes Korean, mention that `ko-writing` (reports,
+  docs, explanations) and `ko-ui-text` (screen strings) load themselves — no command to
+  remember. Details in `docs/agent-workflow/skills.md`.

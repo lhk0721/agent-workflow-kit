@@ -39,6 +39,8 @@
 - Agent-read text is English: this file, the rulebook, management docs, work logs, issue/PR bodies, commit bodies.
 - Replies and reports to the user follow their personal `human_language` AND reply style (set during onboarding, lives in `~/.claude/CLAUDE.md`). If that file is missing, run onboarding §4 before long reports.
 - Repo-visible titles (commit/issue/PR titles, README) follow `team_language` in `agent-system.yaml`.
+- Korean output goes through the installed skills: `ko-writing` for prose (reports, docs, explanations), `ko-ui-text` for screen strings. See `docs/agent-workflow/skills.md`.
+- NEVER translate English working notes into a Korean report. Pull the facts out and write the report in Korean from scratch — a translated note reads as machine output.
 
 ## Rulebook
 
@@ -46,6 +48,7 @@
 - Management documents and logging: `docs/agent-workflow/documentation-rules.md`
 - Templates: `docs/agent-workflow/templates.md`
 - New member setup: `docs/agent-workflow/onboarding.md`
+- Korean writing/UI-text skills: `docs/agent-workflow/skills.md`
 - Hooks (`.githooks/`) are backstops, not the rule source. Tripping one means the workflow was already violated — fix the order, not just the failure.
 <!-- kernel:end -->
 
