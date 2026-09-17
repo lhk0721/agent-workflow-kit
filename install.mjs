@@ -112,6 +112,15 @@ const kitEntry = {
 };
 const at = pre.findIndex(isKit);
 if (at >= 0) pre[at] = kitEntry; else pre.push(kitEntry);
+
+// Session memory lives outside the repo, so no git hook can reach it. This one runs
+// at session start and reports memory claims that contradict git.
+const MEMCHK = 'node .claude/hooks/memory-freshness.mjs';
+const start = (settings.hooks.SessionStart ||= []);
+const isKitMem = (g) => (g.hooks || []).some((h) => (h.command || '').includes('memory-freshness.mjs'));
+const memEntry = { hooks: [{ type: 'command', command: MEMCHK }] };
+const mAt = start.findIndex(isKitMem);
+if (mAt >= 0) start[mAt] = memEntry; else start.push(memEntry);
 mkdirSync(dirname(settingsPath), { recursive: true });
 writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 installed.push('.claude/settings.json#PreToolUse');
