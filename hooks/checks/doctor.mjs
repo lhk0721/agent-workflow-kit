@@ -1,5 +1,5 @@
 // agent-workflow-kit — setup verification. System-owned. Run: node .githooks/checks/doctor.mjs
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { loadConfig } from './config.mjs';
 import { git } from './lib.mjs';
 
@@ -27,6 +27,15 @@ try {
   git('check-ignore', '-q', '.claude/skills');
   console.log('WARN .claude/ is git-ignored — skills work in this clone but are not shared with the team');
 } catch {}
+
+check('.claude/hooks/guard-destructive.mjs', existsSync('.claude/hooks/guard-destructive.mjs'), 'reinstall the kit (install.mjs)');
+let registered = false;
+try {
+  const s = JSON.parse(readFileSync('.claude/settings.json', 'utf8'));
+  registered = (s.hooks?.PreToolUse || []).some((g) =>
+    (g.hooks || []).some((h) => (h.command || '').includes('guard-destructive.mjs')));
+} catch {}
+check('PreToolUse guard registered in .claude/settings.json', registered, 'reinstall the kit (install.mjs)');
 
 const cfg = loadConfig();
 check(

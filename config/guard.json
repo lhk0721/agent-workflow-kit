@@ -1,0 +1,9 @@
+{
+  "//": "agent-workflow-kit — repo-owned guard config. `update` never overwrites this file.",
+  "//ask": "Extra regex patterns asked about before running. Shape: {\"re\": \"...\", \"why\": \"...\"}",
+  "ask": [],
+  "//deny": "Patterns refused outright, whatever the permission mode.",
+  "deny": [],
+  "//askPaths": "Plain substrings. Any command containing one is asked about. Use for paths that hold irreplaceable data (capture runs, datasets, device state).",
+  "askPaths": []
+}
