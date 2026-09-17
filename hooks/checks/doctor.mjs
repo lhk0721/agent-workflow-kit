@@ -28,7 +28,9 @@ try {
   console.log('WARN .claude/ is git-ignored — skills work in this clone but are not shared with the team');
 } catch {}
 
-check('.claude/hooks/guard-destructive.mjs', existsSync('.claude/hooks/guard-destructive.mjs'), 'reinstall the kit (install.mjs)');
+for (const h of ['guard-destructive', 'memory-freshness']) {
+  check(`.claude/hooks/${h}.mjs`, existsSync(`.claude/hooks/${h}.mjs`), 'reinstall the kit (install.mjs)');
+}
 let registered = false;
 try {
   const s = JSON.parse(readFileSync('.claude/settings.json', 'utf8'));

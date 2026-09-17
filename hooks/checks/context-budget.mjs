@@ -76,8 +76,9 @@ if (start >= 0) {
     const behind = countRev(`${br}..${BASE}`);
     if (ahead === null || behind === null) return null;     // unknown ref — say nothing
 
-    // Landed: holds nothing the base lacks, and the base has moved on.
-    if (ahead === 0 && behind > 0) return `its work is already in ${BASE}`;
+    // Holds nothing the base lacks. git cannot tell "merged and forgotten" from
+    // "branched but never committed on", so say what is observed, not what it means.
+    if (ahead === 0 && behind > 0) return `holds no commits beyond ${BASE} — landed, or never started`;
 
     // Drifted: the base ran far ahead while this line sat still.
     if (behind > LIMITS.behind) return `${BASE} is ${behind} commits ahead of it`;
@@ -112,7 +113,7 @@ if (start >= 0) {
       continue;
     }
     const why = staleReason(br);
-    if (why) warn.push(`Recent Active Context points at '${br}' — ${why}; remove the line if the work is done`);
+    if (why) warn.push(`Recent Active Context points at '${br}' — ${why}; remove the line if that work is done`);
   }
 }
 
