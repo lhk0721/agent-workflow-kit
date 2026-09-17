@@ -49,7 +49,8 @@
 - Templates: `docs/agent-workflow/templates.md`
 - New member setup: `docs/agent-workflow/onboarding.md`
 - Korean writing/UI-text skills: `docs/agent-workflow/skills.md`
-- Hooks (`.githooks/`) are backstops, not the rule source. Tripping one means the workflow was already violated — fix the order, not just the failure.
+- AGENTS.md size/staleness budget and the two hook layers: `docs/agent-workflow/context-maintenance.md`
+- Hooks are backstops at two levels, not the rule source. `.githooks/` fires at commit; `.claude/hooks/` fires before a tool call and is the only layer that can stop a destructive command. Tripping either means the workflow was already violated — fix the order, not just the failure.
 <!-- kernel:end -->
 
 ## Recent Active Context (pointer-only slot)

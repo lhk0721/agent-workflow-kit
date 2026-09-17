@@ -52,6 +52,7 @@ const seedText = (toRel, content) => {
 copyDir('rulebook', 'docs/agent-workflow');
 copyDir('hooks', '.githooks');
 copyDir('skills', '.claude/skills');
+copyDir('claude-hooks', '.claude/hooks');
 
 // Skills only reach teammates if they are committed. A repo that ignores .claude/
 // installs them for this clone only, so say it out loud instead of failing silently.
@@ -92,8 +93,32 @@ if (!existsSync(agentsPath)) {
   }
 }
 
+// ---- Claude Code hook registration ----
+// settings.json is shared with the repo's own config, so replace only the kit's own
+// entry (identified by the script path) and leave every other hook untouched.
+const GUARD = 'node .claude/hooks/guard-destructive.mjs';
+const settingsPath = join(target, '.claude/settings.json');
+let settings = {};
+if (existsSync(settingsPath)) {
+  try { settings = JSON.parse(readFileSync(settingsPath, 'utf8')); }
+  catch { fail('.claude/settings.json is not valid JSON — fix it, then rerun install'); }
+}
+settings.hooks ||= {};
+const pre = (settings.hooks.PreToolUse ||= []);
+const isKit = (g) => (g.hooks || []).some((h) => (h.command || '').includes('guard-destructive.mjs'));
+const kitEntry = {
+  matcher: 'Bash|PowerShell',
+  hooks: [{ type: 'command', command: GUARD }],
+};
+const at = pre.findIndex(isKit);
+if (at >= 0) pre[at] = kitEntry; else pre.push(kitEntry);
+mkdirSync(dirname(settingsPath), { recursive: true });
+writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+installed.push('.claude/settings.json#PreToolUse');
+
 // ---- repo-owned (seeded once) ----
 seed('config/agent-system.yaml', 'agent-system.yaml');
+seed('config/guard.json', '.claude/guard.json');
 seedText('docs/issues/README.md',
   '# Issue Management Documents — Master Registry\n\n' +
   'One row per management document, added in the same commit that creates the doc.\n\n' +
