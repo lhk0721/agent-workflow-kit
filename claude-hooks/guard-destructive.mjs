@@ -7,20 +7,30 @@
 //
 // Decisions: "ask" forces a confirmation even under bypassPermissions/--dangerously-*,
 // "deny" refuses outright. Patterns are repo-owned in .claude/guard.json.
+//
+// A guard that asks too often is worse than none: the user learns to click through,
+// and the one prompt that matters gets the same reflex. So the defaults below aim at
+// what is actually irreversible — recursive deletes, history rewrites, raw devices —
+// and not at `rm -f one-file`, `2>/dev/null`, or script text being written to disk.
 import { existsSync, readFileSync } from 'node:fs';
+
+// `rm` whose option tokens carry a recursive flag: -r, -rf, -fr, -Rf, -f -r, --recursive.
+// Plain `rm -f file` is one file; if it sits in a guarded path, askPaths catches it.
+const RM_RECURSIVE = '\\brm\\s+(?:-{1,2}\\S*\\s+)*-(?:[a-zA-Z]*r[a-zA-Z]*|-recursive)\\b';
 
 const DEFAULTS = {
   // Asked about even when permissions are bypassed. Recoverable but expensive to undo.
   ask: [
-    { re: 'rm\\s+(-[a-zA-Z]*[rf][a-zA-Z]*\\s+)+', why: 'recursive/forced delete' },
+    { re: RM_RECURSIVE, why: 'recursive delete' },
+    { re: '\\bRemove-Item\\b[^\\n|;]*\\s-Recurse\\b', why: 'recursive delete (PowerShell)' },
     { re: '\\bgit\\s+reset\\s+--hard\\b', why: 'discards working-tree changes' },
     { re: '\\bgit\\s+clean\\s+-[a-zA-Z]*f', why: 'deletes untracked files' },
-    { re: '\\bgit\\s+push\\b.*(--force|-f)\\b(?!.*--force-with-lease)', why: 'force push rewrites remote history' },
+    { re: '\\bgit\\s+push\\b.*(\\s--force\\b(?!-with-lease)|\\s-f\\b)', why: 'force push rewrites remote history' },
     { re: '\\bgit\\s+branch\\s+-D\\b', why: 'deletes an unmerged branch' },
     { re: '\\bgit\\s+worktree\\s+remove\\b.*--force|\\bgit\\s+worktree\\s+prune\\b', why: 'removes a worktree that may hold uncommitted work' },
     { re: '\\b(DROP|TRUNCATE)\\s+(TABLE|DATABASE|SCHEMA)\\b', why: 'destroys database objects' },
     { re: '\\bmkfs\\b|\\bdd\\s+.*of=/dev/', why: 'writes to a raw device' },
-    { re: '\\bssh\\b.*\\brm\\s+-[a-zA-Z]*[rf]', why: 'remote recursive delete' },
+    { re: '\\bssh\\b.*' + RM_RECURSIVE, why: 'remote recursive delete' },
   ],
   // Never allowed, whatever the mode.
   deny: [
@@ -49,6 +59,16 @@ const decide = (decision, reason) => {
   process.exit(0);
 };
 
+// Text that `cat`/`tee` writes to a file through a heredoc is data, not a command
+// that runs now. A script saved to the scratchpad that contains `rm -rf` must not
+// trip the guard until something executes it. Heredocs fed to an interpreter
+// (`bash <<EOF`, `python - <<PY`, `ssh host <<EOF`) do run, so those stay visible.
+const stripWrittenHeredocs = (s) =>
+  s.replace(
+    /((?:^|[\n;|&])[ \t]*(?:cat|tee)\b[^\n]*?<<-?[ \t]*(['"]?)(\w+)\2[^\n]*\n)[\s\S]*?(\n[ \t]*\3[ \t]*(?=\n|$))/g,
+    '$1$4',
+  );
+
 const input = await read();
 let call;
 try { call = JSON.parse(input); } catch { process.exit(0); }
@@ -56,8 +76,9 @@ try { call = JSON.parse(input); } catch { process.exit(0); }
 // Only shell commands carry this risk; file edits are already reversible via git.
 const tool = call.tool_name || '';
 if (tool !== 'Bash' && tool !== 'PowerShell') process.exit(0);
-const cmd = (call.tool_input || {}).command || '';
-if (!cmd.trim()) process.exit(0);
+const raw = (call.tool_input || {}).command || '';
+if (!raw.trim()) process.exit(0);
+const cmd = stripWrittenHeredocs(raw);
 
 let cfg = DEFAULTS;
 if (existsSync('.claude/guard.json')) {
@@ -77,13 +98,20 @@ for (const r of cfg.deny) {
 for (const r of cfg.ask) {
   if (new RegExp(r.re, 'i').test(cmd)) decide('ask', `${r.why} — confirm before running`);
 }
+
 // A guarded path only matters when the command can change it. Prompting on `ls` or
 // `grep` trains the user to click through every prompt, which costs more than it saves.
-const WRITES = /(^|[|&;]\s*)(rm|mv|dd|truncate|shred|chmod|chown)\b|\brsync\b|\bscp\b|>\s*\S|\bgit\s+(clean|checkout|restore)\b/;
-if (WRITES.test(cmd)) {
-  for (const p of cfg.askPaths) {
-    if (cmd.includes(p)) decide('ask', `writes to a guarded path (${p}) — confirm before running`);
-  }
+// Two ways a command changes a path:
+//  1. a writing command sits in command position and the path appears anywhere;
+//  2. a redirect targets the path. `2>/dev/null`, `2>&1`, `&>`, `>/dev/null` are not
+//     writes to anything the user cares about, so they are excluded.
+const WRITE_CMDS = /(^|[|&;\n'"]\s*)(sudo\s+)?(rm|mv|dd|truncate|shred|chmod|chown|rsync|scp|Remove-Item|Move-Item|Set-Content|Out-File)\b|\bgit\s+(clean|checkout|restore)\b/;
+const REDIRECT_TARGET = /(?<![2&])>>?\s*(?!\/dev\/null\b|&)(\S+)/g;
+const redirectTargets = [...cmd.matchAll(REDIRECT_TARGET)].map((m) => m[1]);
+const writes = WRITE_CMDS.test(cmd);
+for (const p of cfg.askPaths) {
+  if (writes && cmd.includes(p)) decide('ask', `writes to a guarded path (${p}) — confirm before running`);
+  if (redirectTargets.some((t) => t.includes(p))) decide('ask', `redirects output into a guarded path (${p}) — confirm before running`);
 }
 
 process.exit(0);
