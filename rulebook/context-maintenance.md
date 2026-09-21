@@ -70,3 +70,12 @@ command before the agent runs it. Prose in `AGENTS.md` asking the agent to be ca
 not a substitute; it is advisory and probabilistic, while a hook is deterministic.
 
 Repos add their own guarded paths in `.claude/guard.json` (repo-owned, seeded once).
+
+A guard that asks too often is worse than none. When 15 prompts in a row are `rm -f
+one-file`, `2>/dev/null`, or a grep that mentions a guarded directory, the user learns to
+click through — and the one prompt that matters gets the same reflex. So the guard asks
+only for what is actually hard to undo: a *recursive* delete, a history rewrite, a raw
+device, a write or redirect *into* a guarded path. Heredoc text that `cat`/`tee` writes to
+disk is data, not a command, and is stripped before matching; a heredoc fed to
+`bash`/`python`/`ssh` runs, so it stays visible. `.claude/hooks/guard-destructive.test.mjs`
+holds the cases; run it from the repo root after touching either file.
