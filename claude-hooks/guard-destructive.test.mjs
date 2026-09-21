@@ -63,6 +63,15 @@ const PATH_CASES = [
   [`cat ${GUARDED}README.md >/dev/null`, 'allow'],
   [`echo hi > /dev/null; ls ${GUARDED}`, 'allow'],
   [`cat > /tmp/notes.md <<'MD'\nsee ${GUARDED}\nMD`, 'allow'],
+  // #417 — judged per simple command: a delete elsewhere + the path as prose in an
+  // interpreter heredoc is not a write to the path; a delete call in that body is.
+  [`rm -f docs/x.md; python - <<'EOF'\nprint("see ${GUARDED} in the table")\nEOF`, 'allow'],
+  [`rm -f docs/x.md\npython - <<'EOF'\ntext = "row 15: ${GUARDED}"\nEOF`, 'allow'],
+  [`ls ${GUARDED}; rm -f build/x.log`, 'allow'],
+  [`python - <<'EOF'\nimport shutil; shutil.rmtree("${GUARDED}run3")\nEOF`, 'ask'],
+  [`python - <<'EOF'\nimport os; os.remove("${GUARDED}a.json")\nEOF`, 'ask'],
+  [`ls; mv ${GUARDED}a ${GUARDED}b`, 'ask'],
+  [`echo x > /tmp/a && cat /tmp/a > ${GUARDED}out.json`, 'ask'],
 ];
 
 const run = (command, tool) => {
