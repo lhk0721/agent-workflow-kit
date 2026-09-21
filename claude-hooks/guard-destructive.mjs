@@ -99,19 +99,69 @@ for (const r of cfg.ask) {
   if (new RegExp(r.re, 'i').test(cmd)) decide('ask', `${r.why} — confirm before running`);
 }
 
-// A guarded path only matters when the command can change it. Prompting on `ls` or
-// `grep` trains the user to click through every prompt, which costs more than it saves.
-// Two ways a command changes a path:
-//  1. a writing command sits in command position and the path appears anywhere;
-//  2. a redirect targets the path. `2>/dev/null`, `2>&1`, `&>`, `>/dev/null` are not
-//     writes to anything the user cares about, so they are excluded.
+// A guarded path only matters when the command can change it — and only when the
+// command that changes things is the one naming the path. Matching "a write verb
+// anywhere" against "the path anywhere" trips on `rm -f a.md` sitting next to a python
+// heredoc whose *document text* mentions ~/captures (rack-tracker #417). So the command
+// is split into simple commands first (`;`, `&&`, `||`, `|`, newline — never inside
+// quotes or a heredoc body), and each simple command is judged on its own:
+//  1. a writing command in command position and the path among its own arguments;
+//  2. a redirect inside that simple command targeting the path (`2>/dev/null`, `2>&1`,
+//     `&>`, `>/dev/null` are not writes to anything the user cares about);
+//  3. a heredoc fed to an interpreter (`python - <<EOF`, `bash <<EOF`) whose body holds
+//     both a delete call and the path — code that runs now, not prose.
 const WRITE_CMDS = /(^|[|&;\n'"]\s*)(sudo\s+)?(rm|mv|dd|truncate|shred|chmod|chown|rsync|scp|Remove-Item|Move-Item|Set-Content|Out-File)\b|\bgit\s+(clean|checkout|restore)\b/;
 const REDIRECT_TARGET = /(?<![2&])>>?\s*(?!\/dev\/null\b|&)(\S+)/g;
-const redirectTargets = [...cmd.matchAll(REDIRECT_TARGET)].map((m) => m[1]);
-const writes = WRITE_CMDS.test(cmd);
-for (const p of cfg.askPaths) {
-  if (writes && cmd.includes(p)) decide('ask', `writes to a guarded path (${p}) — confirm before running`);
-  if (redirectTargets.some((t) => t.includes(p))) decide('ask', `redirects output into a guarded path (${p}) — confirm before running`);
+const DELETE_CALLS = /\b(rmtree|os\.remove|os\.unlink|unlink|remove_dir|rmdir|Remove-Item|rm\s+-[a-zA-Z]*r|del\s+\/[sq])\b/i;
+
+// Split on separators outside quotes; a heredoc body (`<<TAG` … `TAG`) travels with the
+// simple command that opened it, so `python - <<EOF … EOF` is one unit.
+const splitSimple = (s) => {
+  const out = [];
+  let cur = '', q = null, i = 0;
+  const heredocs = [];              // pending terminators for the current line
+  while (i < s.length) {
+    const ch = s[i];
+    if (q) {
+      cur += ch;
+      if (ch === q && s[i - 1] !== '\\') q = null;
+      i++; continue;
+    }
+    if (ch === "'" || ch === '"') { q = ch; cur += ch; i++; continue; }
+    const hd = /^<<-?\s*(['"]?)(\w+)\1/.exec(s.slice(i));
+    if (hd) { heredocs.push(hd[2]); cur += hd[0]; i += hd[0].length; continue; }
+    if (ch === '\n' && heredocs.length) {
+      // swallow the body up to the terminator line
+      const rest = s.slice(i + 1);
+      const tag = heredocs.shift();
+      const m = new RegExp('^([\\s\\S]*?\\n)?[ \\t]*' + tag + '[ \\t]*(?=\\n|$)').exec(rest);
+      const bodyLen = m ? m[0].length : rest.length;
+      cur += '\n' + rest.slice(0, bodyLen);
+      i += 1 + bodyLen; continue;
+    }
+    const sep = /^(\|\||&&|[;|\n])/.exec(s.slice(i));
+    if (sep) { if (cur.trim()) out.push(cur.trim()); cur = ''; i += sep[0].length; continue; }
+    cur += ch; i++;
+  }
+  if (cur.trim()) out.push(cur.trim());       // trimmed: WRITE_CMDS anchors the verb at the start
+  return out;
+};
+
+const heredocBody = (simple) => {
+  const m = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n([\s\S]*)$/.exec(simple);
+  return m ? m[3] : '';
+};
+
+for (const simple of splitSimple(cmd)) {
+  const body = heredocBody(simple);
+  const head = body ? simple.slice(0, simple.length - body.length) : simple;
+  const writes = WRITE_CMDS.test(head);
+  const redirectTargets = [...head.matchAll(REDIRECT_TARGET)].map((m) => m[1]);
+  for (const p of cfg.askPaths) {
+    if (writes && head.includes(p)) decide('ask', `writes to a guarded path (${p}) — confirm before running`);
+    if (redirectTargets.some((t) => t.includes(p))) decide('ask', `redirects output into a guarded path (${p}) — confirm before running`);
+    if (body && body.includes(p) && DELETE_CALLS.test(body)) decide('ask', `script fed to an interpreter deletes inside a guarded path (${p}) — confirm before running`);
+  }
 }
 
 process.exit(0);
