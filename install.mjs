@@ -121,6 +121,21 @@ const isKitMem = (g) => (g.hooks || []).some((h) => (h.command || '').includes('
 const memEntry = { hooks: [{ type: 'command', command: MEMCHK }] };
 const mAt = start.findIndex(isKitMem);
 if (mAt >= 0) start[mAt] = memEntry; else start.push(memEntry);
+
+// Claude Code does not re-send the skill listing after a context compaction, so a skill
+// never invoked before it is unknown afterwards. Two layers: the listing comes back on
+// SessionStart(compact); an edit that writes Korean text is denied until the matching
+// skill (per .claude/require-skill.json, repo-owned) has been invoked in the session.
+const LISTING = 'node .claude/hooks/skill-listing.mjs';
+const isKitListing = (g) => (g.hooks || []).some((h) => (h.command || '').includes('skill-listing.mjs'));
+const listingEntry = { matcher: 'compact', hooks: [{ type: 'command', command: LISTING }] };
+const lAt = start.findIndex(isKitListing);
+if (lAt >= 0) start[lAt] = listingEntry; else start.push(listingEntry);
+const REQUIRE = 'node .claude/hooks/require-skill.mjs';
+const isKitRequire = (g) => (g.hooks || []).some((h) => (h.command || '').includes('require-skill.mjs'));
+const requireEntry = { matcher: 'Write|Edit|MultiEdit|NotebookEdit|Skill', hooks: [{ type: 'command', command: REQUIRE }] };
+const rAt = pre.findIndex(isKitRequire);
+if (rAt >= 0) pre[rAt] = requireEntry; else pre.push(requireEntry);
 mkdirSync(dirname(settingsPath), { recursive: true });
 writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 installed.push('.claude/settings.json#PreToolUse');
@@ -128,6 +143,7 @@ installed.push('.claude/settings.json#PreToolUse');
 // ---- repo-owned (seeded once) ----
 seed('config/agent-system.yaml', 'agent-system.yaml');
 seed('config/guard.json', '.claude/guard.json');
+seed('config/require-skill.json', '.claude/require-skill.json');
 seedText('docs/issues/README.md',
   '# Issue Management Documents — Master Registry\n\n' +
   'One row per management document, added in the same commit that creates the doc.\n\n' +
