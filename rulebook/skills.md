@@ -16,7 +16,13 @@ matches — nobody has to remember a command.
 
 Each has three modes — audit (diagnose), rewrite (diagnose + edit the files), write
 (compose new). They diagnose repeated patterns first and only then rewrite, so the same
-defect does not come back on the next screen or the next document.
+defect does not come back on the next screen or the next document.
+
+Both carry `paths:` in their frontmatter (`ko-writing`: `**/*.md`; `ko-ui-text`: jsx/tsx/vue/html
+and i18n directories), so Claude Code loads them when such a file is touched. That is the
+cheap lever; the deterministic one is `.claude/hooks/require-skill.mjs`, which denies any
+Write/Edit whose new text carries Hangul until the skill named by `.claude/require-skill.json`
+has been invoked in the session (see `context-maintenance.md`).
 
 ## Boundary between the two
 

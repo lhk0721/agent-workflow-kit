@@ -79,3 +79,17 @@ device, a write or redirect *into* a guarded path. Heredoc text that `cat`/`tee`
 disk is data, not a command, and is stripped before matching; a heredoc fed to
 `bash`/`python`/`ssh` runs, so it stays visible. `.claude/hooks/guard-destructive.test.mjs`
 holds the cases; run it from the repo root after touching either file.
+
+Skills have the same advisory-versus-deterministic split. "Use `ko-writing` for Korean docs" is
+prose, and it has a second failure mode: after a context compaction Claude Code re-sends
+the tool and agent listings but not the skill listing, so a skill that was never invoked
+before the compaction is unknown afterwards — the agent cannot use what it does not know
+exists. Two hooks close that. `.claude/hooks/skill-listing.mjs` runs on SessionStart with
+matcher `compact` and hands the user's and the repo's SKILL.md names back as context.
+`.claude/hooks/require-skill.mjs` runs before Write/Edit and denies an edit whose new text
+carries Hangul until the skill named by `.claude/require-skill.json` (repo-owned: which
+paths want `ko-ui-text`, which want `ko-writing`, the Hangul threshold, a TTL) has been
+invoked in this session — it sees the `Skill` call and keeps a marker. The deny goes to the
+model, which invokes the skill and retries; the user sees nothing. A third, cheaper lever
+sits in the skill itself: `paths:` in SKILL.md frontmatter makes Claude Code load the skill
+when a matching file is touched, with no hook at all.
