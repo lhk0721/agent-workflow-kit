@@ -18,11 +18,12 @@ Each has three modes — audit (diagnose), rewrite (diagnose + edit the files), 
 (compose new). They diagnose repeated patterns first and only then rewrite, so the same
 defect does not come back on the next screen or the next document.
 
-Both carry `paths:` in their frontmatter (`ko-writing`: `**/*.md`; `ko-ui-text`: jsx/tsx/vue/html
-and i18n directories), so Claude Code loads them when such a file is touched. That is the
-cheap lever; the deterministic one is `.claude/hooks/require-skill.mjs`, which denies any
-Write/Edit whose new text carries Hangul until the skill named by `.claude/require-skill.json`
-has been invoked in the session (see `context-maintenance.md`).
+Neither carries `paths:` in its frontmatter. It looked like a cheap auto-load lever, but on
+Claude Code 2.1.278 a skill with `paths:` vanishes from the skill listing and the `Skill` tool
+reports "Unknown skill" (verified 2026-09-22). The file scoping lives in
+`.claude/require-skill.json` instead, and the deterministic lever is
+`.claude/hooks/require-skill.mjs`, which denies any Write/Edit whose new text carries Hangul
+until the matching skill has been invoked in the session (see `context-maintenance.md`).
 
 ## Boundary between the two
 
