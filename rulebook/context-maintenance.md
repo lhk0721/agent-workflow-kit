@@ -90,6 +90,8 @@ matcher `compact` and hands the user's and the repo's SKILL.md names back as con
 carries Hangul until the skill named by `.claude/require-skill.json` (repo-owned: which
 paths want `ko-ui-text`, which want `ko-writing`, the Hangul threshold, a TTL) has been
 invoked in this session — it sees the `Skill` call and keeps a marker. The deny goes to the
-model, which invokes the skill and retries; the user sees nothing. A third, cheaper lever
-sits in the skill itself: `paths:` in SKILL.md frontmatter makes Claude Code load the skill
-when a matching file is touched, with no hook at all.
+model, which invokes the skill and retries; the user sees nothing. Do not reach for
+`paths:` in SKILL.md frontmatter as a cheaper lever: on Claude Code 2.1.278 a skill that
+carries it drops out of the listing entirely and the `Skill` tool answers "Unknown skill",
+so the hook above would deny every Korean edit with no way to satisfy it (verified 2026-09-22
+with a two-skill control run).
