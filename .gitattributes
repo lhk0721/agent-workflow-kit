@@ -1,2 +1,4 @@
 # sh hook shims are copied verbatim into target repos — CRLF breaks /bin/sh
 hooks/** text eol=lf
+# python scripts under skills/ carry a shebang — CRLF breaks it on Linux/macOS
+skills/**/*.py text eol=lf
