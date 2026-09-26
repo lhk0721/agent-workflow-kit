@@ -17,5 +17,31 @@ issue_types:
 # one umbrella issue per member's workstream; concrete tasks are sub-issues under it
 umbrella_issues: per-member   # per-member | off
 
-# docs that must change together; entries like: "docs/a.md <-> docs/b.md"
+# true: every branch is <issue>-<type>-<desc> and stages its management doc.
+# false: no GitHub issues; branch_pattern governs branch names, management docs are
+# optional, commit subjects need no (#n) suffix. Protected-branch checks still apply.
+issue_first: true
+branch_pattern: ""         # read only when issue_first is false, e.g. "<member>/<desc>"
+                           # placeholders: <member> <desc> <type> <issue>
+
+# where management docs live; <root>/<type>/ and <root>/sub-issues/<type>/ both accepted
+issues_root: docs/issues
+
+# where new worktrees go: sibling = ../<repo>-<issue> | claude = .claude/worktrees/<issue>-<short>
+worktree_root: sibling
+
+# branch that PRs land on; empty = origin/HEAD. external profile: usually upstream/<branch>
+base_branch: ""
+
+# working-notes tree (e.g. notes); every new .md under it must be linked from
+# <notes_dir>/README.md in the same commit. Empty = no notes check.
+notes_dir: ""
+
+# docs that must change together. Entries:
+#   "docs/a.md <-> docs/b.md"                      -> commit blocked when only one is staged
+#   "docs/a.md <-> docs/b.md | warn | why it matters" -> reminder printed, commit proceeds
 doc_pairs: []
+
+# repo-installed agent tools, announced at session start when the artifact/command exists:
+#   "docs/agent-workflow/tools/graphify.md | graphify-out/graph.json"
+tools: []

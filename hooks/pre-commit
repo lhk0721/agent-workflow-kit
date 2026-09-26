@@ -6,6 +6,9 @@ set -e
 node .githooks/checks/management-doc.mjs
 node .githooks/checks/doc-pairs.mjs
 node .githooks/checks/context-budget.mjs
+node .githooks/checks/registry-row.mjs
+node .githooks/checks/notes-index.mjs
+node .githooks/checks/encoding.mjs
 # repo-owned checks: .githooks/checks/repo-*.mjs is the repo's namespace.
 # The kit never ships files named repo-*, so updates never touch them.
 for f in .githooks/checks/repo-*.mjs; do

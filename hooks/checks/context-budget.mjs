@@ -2,14 +2,24 @@
 // Warns only; never blocks. Rules: docs/agent-workflow/context-maintenance.md
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { loadConfig, baseRef } from './config.mjs';
 import { staged, skip } from './lib.mjs';
 
 if (skip()) process.exit(0);
 if (!staged().includes('AGENTS.md')) process.exit(0);
 if (!existsSync('AGENTS.md')) process.exit(0);
 
-const BASE = process.env.AGENT_KIT_BASE || 'origin/HEAD';
-const LIMITS = { file: 12000, bullet: 1200, active: 5, struck: 1, behind: 100, days: 60 };
+const cfg = loadConfig();
+const BASE = baseRef(cfg);
+const LIMITS = {
+  file: 12000, bullet: 1200, active: 5, struck: 1, behind: 100, days: 60,
+  // A section this large is not a rule set, it is a document that never moved out
+  // (rack-tracker: a Hardware Facts section was 33% of the file; pipeplot: a 1,246-char
+  // pure-history section). Both bounds must hold — 30% of a tiny file is fine.
+  sectionShare: 0.30, sectionChars: 3000,
+  // ①②③④… inside one bullet is a runbook. Four is where a "sequence" starts.
+  enumerators: 4,
+};
 
 const text = readFileSync('AGENTS.md', 'utf8');
 const lines = text.split('\n');
@@ -35,9 +45,31 @@ for (const l of lines) {
 }
 if (cur) bullets.push(cur);
 
+// Circled digits ①–⑳, parenthesized digits ⑴–⒇, and ASCII (1)…(9).
+const ENUMERATOR = /[①-⑳⑴-⒇]|\([1-9]\)/g;
 for (const b of bullets) {
   if (b.text.length > LIMITS.bullet) {
     warn.push(`bullet is ${b.text.length} chars (budget ${LIMITS.bullet}): ${b.head.slice(0, 60)}...`);
+  }
+  const steps = (b.text.match(ENUMERATOR) || []).length;
+  if (steps >= LIMITS.enumerators) {
+    warn.push(`bullet holds ${steps} numbered steps: ${b.head.slice(0, 60)}... — numbered steps in a bullet are a runbook — move it to docs/ and link`);
+  }
+}
+
+// A `## ` section runs to the next `#`/`##` heading. Measured on the whole file so the
+// share is the reader's share: this is what the model loads on every request.
+const sections = [];
+for (let i = 0; i < lines.length; i++) {
+  if (!/^## /.test(lines[i])) continue;
+  let j = i + 1;
+  while (j < lines.length && !/^#{1,2} /.test(lines[j])) j++;
+  sections.push({ title: lines[i].replace(/^## /, '').trim(), chars: lines.slice(i, j).join('\n').length });
+}
+for (const s of sections) {
+  const share = s.chars / Math.max(text.length, 1);
+  if (share > LIMITS.sectionShare && s.chars > LIMITS.sectionChars) {
+    warn.push(`section '${s.title}' is ${Math.round(share * 100)}% of AGENTS.md (${s.chars} chars) — it is a document with a pointer left behind`);
   }
 }
 
@@ -61,8 +93,8 @@ if (start >= 0) {
   // "merged" must mean "its work landed and the line was never removed", not
   // "it has no commits yet". A freshly branched line is level with the base and
   // `git branch --merged` lists it — so compare both directions instead.
-  // Base branch: AGENT_KIT_BASE, else origin/HEAD. A repo whose PR base is a fork
-  // remote (upstream/develop) sets it in the hook call.
+  // Base branch: AGENT_KIT_BASE, else agent-system.yaml base_branch, else origin/HEAD.
+  // A repo whose PR base is a fork remote (upstream/develop) sets base_branch.
   const countRev = (range) => {
     try {
       return Number(execFileSync('git', ['rev-list', '--count', range],

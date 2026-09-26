@@ -17,8 +17,13 @@ Ask these, then record the answers in `agent-system.yaml` after install:
 | profile | `solo` (single remote) · `shared` (team, branch + PR) · `external` (forks) | `shared` |
 | protected_branches | branch names that never take direct commits/pushes | `[main]` |
 | team_language | language of repo-visible titles / README | user's language |
+| issue_first | `true` (GitHub issues + management docs) · `false` (no issues; `branch_pattern` such as `<member>/<desc>`; a note section per work unit is the record) | `true` |
 | umbrella_issues | `per-member` (one umbrella issue per member's workstream) · `off` | `per-member` |
-| doc_pairs | docs that must change together | none |
+| worktree_root | `sibling` (`../<repo>-<issue>`) · `claude` (`.claude/worktrees/<issue>-<short>`, git-ignored) | `sibling` |
+| base_branch | the remote ref branches start from and PRs target; `external` usually `upstream/<branch>` | empty = `origin/HEAD` |
+| notes_dir | working-notes directory (analysis, retros, handoffs); index at `<notes_dir>/README.md` | none |
+| doc_pairs | docs that must change together: `a <-> b` (fail) or `a <-> b \| warn \| why it matters` | none |
+| tools | repo tools as `<tool doc> \| <artifact>`; the pointer is injected at session start only while the artifact exists | none |
 
 ## 3. Install
 
@@ -29,17 +34,27 @@ node <kit-path>/install.mjs
 ```
 
 The installer copies system-owned files, seeds repo-owned ones (never overwrites them),
-sets `git config core.hooksPath .githooks`, and writes `agent-system.lock.json`
-(version pin + manifest). It stages the hook files to preserve their executable bit.
+sets `git config core.hooksPath .githooks`, adds `.githooks/** text eol=lf` to
+`.gitattributes`, and writes `agent-system.lock.json` (version pin + manifest + a hash
+per system-owned file). It stages the hook files to preserve their executable bit.
 
-It also installs the Korean writing skills to `.claude/skills/`. If the installer warns
-that `.claude/` is git-ignored, ask the user whether to un-ignore `.claude/skills/` —
-otherwise the skills stay in this clone and teammates never get them.
+- Adopt mode: an existing `docs/agent-workflow/<file>.md` without the kit marker is left
+  untouched and reported. A repo that already has richer rule files keeps them — tell
+  the user which files the installer skipped and where the kit's copy is for comparison.
+- `team_language: ko` seeds `ko-writing.config.md`, `ui-text.config.md` and
+  `ui-text.glossary.md` from the skill templates (repo-owned, never overwritten).
+- The skills install to `.claude/skills/`. If the installer warns that `.claude/` is
+  git-ignored, ask the user whether to un-ignore `.claude/skills/` — otherwise the skills
+  stay in this clone and teammates never get them.
 
 ## 4. Configure + verify
 
 - Write the interview answers into `agent-system.yaml`.
-- `node .githooks/checks/doctor.mjs` — every line must be OK.
+- `node .githooks/checks/doctor.mjs` — every line must be OK. It checks hooks, skills,
+  `.claude/require-skill.json`, the PreToolUse and SessionStart registrations in
+  `.claude/settings.json`, `.gitattributes`, and `PYTHONUTF8` on Windows. A WARN on hook
+  hash drift right after install means the kit copy itself is dirty — fix the kit, not
+  the target.
 - For `shared`/`external` profiles: remind the user to set GitHub branch protection to
   match `protected_branches` (the server setting is the source of truth; the pre-push
   hook is its backstop).
@@ -51,9 +66,9 @@ otherwise the skills stay in this clone and teammates never get them.
   deliberate escape hatch: `AGENT_KIT_SKIP=1 git commit -m "chore: install agent-workflow-kit v<version>"`.
   This is the one legitimate use of the hatch — normal work never needs it.
 - Add two lines to the target repo README: clone command + "run `claude`, say 'run onboarding'".
-- If the repo writes Korean, offer to seed `ko-writing.config.md` / `ui-text.config.md` /
-  `ui-text.glossary.md` from the templates under `.claude/skills/*/assets/`
-  (repo-owned; see `docs/agent-workflow/skills.md`).
+- If `team_language` is not `ko` but the repo writes Korean, offer to seed
+  `ko-writing.config.md` / `ui-text.config.md` / `ui-text.glossary.md` from the templates
+  under `.claude/skills/*/assets/` (repo-owned; see `docs/agent-workflow/skills.md`).
 
 ## Update / Uninstall
 
