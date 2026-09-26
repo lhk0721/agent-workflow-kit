@@ -185,13 +185,19 @@ seed('config/require-skill.json', '.claude/require-skill.json');
 if (ignored('.claude/require-skill.json')) {
   console.warn('WARN: .claude/require-skill.json is git-ignored — the require-skill gate works in this clone only. Un-ignore it to share the gate with the team.');
 }
+// A repo without issues (issue_first: false) has no management documents, so seeding
+// docs/issues/ there only plants an empty tree its own rules may forbid (bajak: docs/
+// holds competition-issued documents only). Registry and type directories are seeded
+// only while the issue workflow is on.
 const issuesRoot = String(cfg.issues_root || 'docs/issues').replace(/\/+$/, '');
-seedText(`${issuesRoot}/README.md`,
-  '# Issue Management Documents — Master Registry\n\n' +
-  'One row per management document, added in the same commit that creates the doc.\n\n' +
-  '| Issue | Doc | Status | Summary |\n| --- | --- | --- | --- |\n');
-for (const d of ['feature', 'fix', 'docs', 'chore', 'refactor', 'perf', 'umbrella', 'sub-issues']) {
-  seed(null, join(issuesRoot, d, '.gitkeep'));
+if (cfg.issue_first !== false) {
+  seedText(`${issuesRoot}/README.md`,
+    '# Issue Management Documents — Master Registry\n\n' +
+    'One row per management document, added in the same commit that creates the doc.\n\n' +
+    '| Issue | Doc | Status | Summary |\n| --- | --- | --- | --- |\n');
+  for (const d of ['feature', 'fix', 'docs', 'chore', 'refactor', 'perf', 'umbrella', 'sub-issues']) {
+    seed(null, join(issuesRoot, d, '.gitkeep'));
+  }
 }
 
 // A repo that writes Korean gets the skills' project config seeded (never overwritten):
