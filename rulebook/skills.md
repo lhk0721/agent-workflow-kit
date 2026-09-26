@@ -31,15 +31,20 @@ re-plans the document in seven steps — fix the audience, build the term table 
 extract claims, fix the paragraph shape (claim → evidence → decision), pair every number
 with a baseline or ceiling, give failures their own section in the same shape as the
 adopted work, then run the mechanical check. Section "재료를 줄글로 옮길 때" in
-`SKILL.md` states the procedure; `references/rules.md` §10 maps it onto the National
-Institute of Korean Language's argumentative-writing rubric, so each rule has an official
-source behind it.
+`SKILL.md` states the procedure. `references/rules.md` opens with the ten principles the
+rest derives from — the cold reader (knows the field, not the project) as the default
+audience, standard terms over metaphors, one definition at first use, numbers with a
+baseline, no internal identifiers as evidence, quantities before the noun, noun-phrase
+headings. Each principle is tied to a criterion of the National Institute of Korean
+Language's argumentative-writing rubric (rules.md §0-1 holds the mapping), so the rules
+have an official public source, not only house style; a report that goes to Korean
+evaluators uses that table as its checklist.
 
 Two files support that path:
 
 | File | Purpose |
 | --- | --- |
-| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit, bold overuse. `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
+| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit or shaped as sentences, bold overuse, quantities placed after the noun. `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
 | `references/style-conversion.md` | Rule table for switching a finished draft between 해라체 (`~한다`) and 하십시오체 (`~합니다`), with the exceptions that need a hand and the rule that headings stay noun phrases in either tone. |
 
 Run the check from the repo root: `python .claude/skills/ko-writing/scripts/check.py <file.md>`.

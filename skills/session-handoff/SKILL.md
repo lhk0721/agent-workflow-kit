@@ -25,7 +25,7 @@ moment it matters. This skill asks.
 
 Write or refresh the note when any of these is true at the end of a turn:
 
-- A background job (training, a 400-item evaluation, a build, a push) is running and its
+- A background job (training, a full-set evaluation, a build, a push) is running and its
   result decides the next step.
 - The context window is long enough that a compaction or a drop is plausible.
 - The user says they are leaving, sleeping, or switching machines.
@@ -36,9 +36,11 @@ moment nobody chose.
 
 ## Where the note goes
 
-- When `agent-system.yaml` sets `notes_dir`: `<notes_dir>/<track>/resume-<yyyy-mm-dd>-<slot>.md`,
-  where `<track>` is the track the running work belongs to and `<slot>` is `morning`,
-  `evening`, `dawn`, or a short label that distinguishes two notes on the same day.
+- When `agent-system.yaml` sets `notes_dir`: `<notes_dir>/<track>/<topic>-handoff.md`
+  (`templates.md`), where `<track>` is the track the running work belongs to and
+  `<topic>` names the workstream being handed over. The filename carries no date — the
+  timestamp lives in the note's first line, so a refreshed note keeps its name and the
+  pointer to it never moves (`documentation-rules.md`: filenames are never dated).
 - Otherwise: the management document's `## Current State` block for the active issue,
   replaced wholesale with the template's content. The block already exists; it is the
   entry point `AGENTS.md` points to.
@@ -56,10 +58,10 @@ that are hardest to reconstruct must land first:
    lets someone ship if everything else fails.
 2. **Running now** — one row per job: what, where (host, task name, container name), when
    it started, ETA, log path, and the command that checks it. "It's running on the
-   second node" is not a row; `ssh ins22 "Get-Content ~/bajak/artifacts/train.log -Tail 3"` is.
+   second node" is not a row; `ssh node2 "tail -n 3 ~/work/artifacts/train.log"` is.
 3. **Confirmed so far** — facts with numbers and where they were written. "The candidate
    is better" is not a fact; "P(win) 0.026 vs threshold 0.90, written in
-   `notes/score/round3-gate.md`" is.
+   `notes/<track>/<candidate>-gate.md`" is.
 4. **Next steps in order** — numbered; each with the command or file. Include the branch
    for the result: "if it passes, do X; if it fails, do Y", so the next session does not
    have to decide under time pressure.
@@ -90,18 +92,21 @@ gone.
 State the fallback as an artefact that exists right now, with its identity (tag +
 digest, commit sha, file + sha256) and the measured number attached to it. Then state
 how to get back to it in one command. "Roll back to the previous version" is not a
-fallback; `docker pull user/image:2026-08-24-rubric` (measured 0.5103 on 400 items,
-failed items 0) is. If the fallback is the current state, say "nothing is pending; the
+fallback; `docker pull user/image:<tag>` (measured <score> on the full set, failed
+items 0) is. If the fallback is the current state, say "nothing is pending; the
 tree at <sha> is the fallback".
 
 ## The refresh rule
 
-Exactly one resume note is current. When you write a new one:
+Exactly one handoff note is current per workstream. Refresh it in place — git history
+keeps the earlier versions, and a fixed filename keeps the pointer valid:
 
-- Overwrite the pointer in `AGENTS.md` Recent Active Context (or `notes/README.md` when
-  the repo indexes notes there) so it names the new file. One pointer, not a list.
-- Put a one-line "superseded by `<new note>`" at the top of the previous note. Do not
-  delete it — its traps section is still true.
+- Update the timestamp in the first line and rewrite the sections that changed; do not
+  append a second copy below the first.
+- The pointer in `AGENTS.md` Recent Active Context (or `notes/README.md` when the repo
+  indexes notes there) names the note. One pointer per workstream, not a list.
+- A second concurrent workstream gets a second topic (`<other-topic>-handoff.md`), not
+  a dated copy of the first.
 - When the running jobs finish and the note's next steps are done, remove the pointer in
   the post-PR cleanup gate; the note stays as history.
 

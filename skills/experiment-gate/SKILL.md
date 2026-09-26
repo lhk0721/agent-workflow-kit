@@ -23,7 +23,7 @@ Three things happened in real projects and each cost days:
   switch was nearly made on that pair. Two single measurements are not a comparison;
   a paired bootstrap on the same items is. Rebasing a branch moves commits, not
   measurements — a "newer" baseline number is still one number.
-- Cut points tuned on the full 400-item validation set showed +0.028. Selected on one
+- Thresholds tuned on the full validation set showed +0.028. Selected on one
   half and scored on the other, over 8 seeds × 2 folds, they lost to plain rounding
   every time (−0.002 to −0.010). The in-sample number was selection bias with a
   friendly name.
@@ -97,8 +97,8 @@ the repo, `~/.claude/skills/experiment-gate/` for a personal install.
 ## Where the gate document lives
 
 - When `agent-system.yaml` sets `notes_dir`: `<notes_dir>/<track>/<name>-gate.md`, where
-  `<track>` is the repo's track directory for that kind of work (e.g. `score/`,
-  `rationale/`) and `<name>` names the candidate (`layer-band-24-48-gate.md`).
+  `<track>` is the repo's track directory for that kind of work (e.g. `perf/`,
+  `model/`) and `<name>` names the candidate (`cache-warmup-gate.md`).
 - Otherwise: next to the issue's management document, `docs/issues/<type>/<branch>-gate.md`,
   linked from the management doc's `## Current State`.
 

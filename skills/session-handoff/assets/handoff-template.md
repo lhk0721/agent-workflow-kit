@@ -1,4 +1,4 @@
-# Resume — <date> <slot>
+# Handoff — <topic>
 
 Read only this document to take over. As of <yyyy-mm-dd hh:mm> (<timezone>).
 
@@ -12,7 +12,7 @@ Read only this document to take over. As of <yyyy-mm-dd hh:mm> (<timezone>).
 command to restore or submit it.>
 
 ```
-<e.g. docker pull user/image:2026-08-24-rubric   # 400 items, 0.5103, failed 0
+<e.g. docker pull user/image:<tag>   # <N> items, <score>, failed 0
       digest sha256:…>
 ```
 
