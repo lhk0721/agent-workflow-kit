@@ -2,3 +2,6 @@
 hooks/** text eol=lf
 # python scripts under skills/ carry a shebang — CRLF breaks it on Linux/macOS
 skills/**/*.py text eol=lf
+# Claude Code hooks and skill scripts are copied verbatim into target repos; keep LF like hooks/**
+claude-hooks/** text eol=lf
+skills/**/*.mjs text eol=lf

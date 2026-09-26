@@ -1,9 +1,11 @@
 {
   "//": "agent-workflow-kit — repo-owned guard config. `update` never overwrites this file.",
-  "//ask": "Extra regex patterns asked about before running. Shape: {\"re\": \"...\", \"why\": \"...\"}",
+  "//ask": "Extra regex patterns asked about before running. Shape: {\"re\": \"...\", \"why\": \"...\"}. Optional \"tool\": \"Bash\" | \"PowerShell\" scopes a rule to one shell.",
   "ask": [],
   "//deny": "Patterns refused outright, whatever the permission mode.",
   "deny": [],
   "//askPaths": "Plain substrings. Any command containing one is asked about. Use for paths that hold irreplaceable data (capture runs, datasets, device state).",
-  "askPaths": []
+  "askPaths": [],
+  "//warn": "Allowed, but the model gets a note (additionalContext) before running. Same shape as ask. For commands that are not destructive but have bitten before — a device tool that hangs without `timeout`, a flag that kills the wrong process.",
+  "warn": []
 }

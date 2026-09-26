@@ -3,6 +3,7 @@
 // manifest. Removes system-owned files + the AGENTS.md kernel block, unsets
 // core.hooksPath. Keeps everything repo-owned (agent-system.yaml, docs/issues/**,
 // AGENTS.md slots) — that is the repo's work record, not the kit's.
+// Reads only `files`; the `hashes` map (v0.2.0+) is doctor's business and is ignored.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
@@ -13,7 +14,7 @@ if (!existsSync(lockPath)) {
 }
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 
-for (const f of lock.files) {
+for (const f of lock.files || []) {
   if (f === 'AGENTS.md#kernel-block') {
     const cur = readFileSync('AGENTS.md', 'utf8');
     const b = cur.indexOf('<!-- kernel:begin');

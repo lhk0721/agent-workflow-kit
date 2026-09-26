@@ -3,12 +3,14 @@
 //
 // Run from a repo root so the repo's .claude/guard.json is picked up:
 //   node .claude/hooks/guard-destructive.test.mjs
-// Each case is a command the guard must allow, ask about, or deny. The "allow" cases
-// are the shape of real false positives that trained the user to click through
-// (rack-tracker #408): `rm -f one-file`, `2>/dev/null`, heredoc text written to disk,
-// `datasets/` mentioned inside a grep.
+// Each case is a command the guard must allow, warn about, ask about, or deny. The
+// "allow" cases are the shape of real false positives that trained the user to click
+// through (rack-tracker #408): `rm -f one-file`, `2>/dev/null`, heredoc text written to
+// disk, `datasets/` mentioned inside a grep.
+// "warn" = the call is allowed and the hook attached additionalContext for the model.
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -43,6 +45,72 @@ const CASES = [
   // root delete — deny
   ['rm -rf / ', 'deny'],
   ['rm -rf ~', 'deny'],
+  // publishing leaves the repo — ask
+  ['docker push krjin234/korean-essay:2026-08-13', 'ask'],
+  ['wrangler deploy', 'ask'],
+  ['wrangler pages deploy dist', 'ask'],
+  ['npm publish --access public', 'ask'],
+  ['gh release create v1.0.0 --notes x', 'ask'],
+  ['twine upload dist/*', 'ask'],
+  ['docker build -t x .', 'allow'],
+  ['gh release list', 'allow'],
+  // worktree removal: --force/-f asks (may drop uncommitted work); plain form warns
+  // (a node_modules junction inside is followed on Windows)
+  ['git worktree remove --force ../repo-12', 'ask'],
+  ['git worktree remove -f ../repo-12', 'ask'],
+  ['git worktree prune', 'ask'],
+  ['git worktree remove ../repo-12', 'warn'],
+  ['git worktree list', 'allow'],
+  // pkill -f kills the ssh session it runs in — warn; -x / pid are the fix
+  ['pkill -f vision_server', 'warn'],
+  ["ssh jetson 'pkill -f vision_server'", 'warn'],
+  ['pkill -x node', 'allow'],
+  ['kill 1234', 'allow'],
+  // inline command-substitution bodies are refused by worktree isolation — warn
+  ['git commit -m "$(cat <<\'EOF\'\nfeat: x\n\nbody\nEOF\n)"', 'warn'],
+  ['gh pr create --title x --body "$(cat body.md)"', 'warn'],
+  ['git commit -F /tmp/msg.txt', 'allow'],
+  ['gh pr create --title x --body-file body.md', 'allow'],
+  // PowerShell 5.1 turns native stderr into a terminating error — warn, PowerShell only
+  ['ssh ins25 "docker ps" 2>&1', 'warn', 'PowerShell'],
+  ['ssh ins25 "docker ps" 2>&1', 'allow'],
+  ['ssh ins25 "docker ps"', 'allow', 'PowerShell'],
+  // UNQUOTED heredoc writing a code file whose body carries a backslash — warn (the
+  // shell expands the body and eats `\\`); quoted delimiter keeps it verbatim — allow;
+  // prose target or no backslash — allow; the write is still data (never ask)
+  ["cat > x.mjs <<EOF\nconst re = /\\bfoo\\b/;\nEOF", 'warn'],
+  ["cat <<-EOF > x.py\nprint('a\\tb')\nEOF", 'warn'],
+  ["tee hooks/a.sh <<EOF\necho \"a\\nb\"\nEOF", 'warn'],
+  ["cat > x.mjs <<'EOF'\nconst re = /\\bfoo\\b/;\nEOF", 'allow'],
+  ['cat > x.mjs <<"EOF"\nconst re = /\\bfoo\\b/;\nEOF', 'allow'],
+  ["cat > notes.md <<EOF\nsee C:\\Users\\me\\x\nEOF", 'allow'],
+  ["cat > x.mjs <<EOF\nconst a = 1;\nEOF", 'allow'],
+  ["cat > s.sh <<'EOF'\nrm -rf /tmp/build\nEOF", 'allow'],
+  // branch switch that creates a branch or restores a file never asks
+  ['git checkout -b x', 'allow'],
+  ['git switch -c x', 'allow'],
+  ['git checkout -- README.md', 'allow'],
+  ['git checkout HEAD -- README.md', 'allow'],
+];
+
+// `git checkout <ref>` asks only when another worktree shares the repo. Two throwaway
+// repos exercise both answers; the hook reads `git worktree list` from its cwd.
+const gitIn = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+const tmp = mkdtempSync(join(tmpdir(), 'guard-test-'));
+const lone = join(tmp, 'lone');
+const shared = join(tmp, 'shared');
+for (const d of [lone, shared]) {
+  gitIn(tmp, 'init', '-q', '-b', 'main', d);
+  gitIn(d, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
+}
+gitIn(shared, 'worktree', 'add', '-q', join(tmp, 'shared-wt'), '-b', 'other');
+const WORKTREE_CASES = [
+  ['git checkout main', 'allow', 'Bash', lone],
+  ['git switch main', 'allow', 'Bash', lone],
+  ['git checkout main', 'ask', 'Bash', shared],
+  ['git switch main', 'ask', 'Bash', shared],
+  ['git checkout -b feature-x', 'allow', 'Bash', shared],
+  ['git checkout -- README.md', 'allow', 'Bash', shared],
 ];
 
 // Guarded-path cases only mean something when .claude/guard.json lists the path.
@@ -70,18 +138,25 @@ const PATH_CASES = [
   [`ls ${GUARDED}; rm -f build/x.log`, 'allow'],
   [`python - <<'EOF'\nimport shutil; shutil.rmtree("${GUARDED}run3")\nEOF`, 'ask'],
   [`python - <<'EOF'\nimport os; os.remove("${GUARDED}a.json")\nEOF`, 'ask'],
-  [`ls; mv ${GUARDED}a ${GUARDED}b`, 'ask'],
+  [`ls ${GUARDED}; mv ${GUARDED}a ${GUARDED}b`, 'ask'],
   [`echo x > /tmp/a && cat /tmp/a > ${GUARDED}out.json`, 'ask'],
 ];
 
-const run = (command, tool) => {
+const run = (command, tool, cwd) => {
   const r = spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ tool_name: tool, tool_input: { command } }),
     encoding: 'utf8',
+    cwd,
   });
   if (r.status !== 0) return `error: ${r.stderr.trim()}`;
   if (!r.stdout.trim()) return 'allow';
-  return JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
+  const out = JSON.parse(r.stdout).hookSpecificOutput;
+  // warn = the call goes through (no decision, or an explicit allow) + a note for the
+  // model. A note next to deny/ask would be a bug and surfaces as a mismatch.
+  if (!out.permissionDecision || out.permissionDecision === 'allow') {
+    return typeof out.additionalContext === 'string' && out.additionalContext.startsWith('[agent-kit] warning:') ? 'warn' : 'allow';
+  }
+  return out.permissionDecision;
 };
 
 let pathCases = PATH_CASES;
@@ -94,12 +169,14 @@ try {
 }
 
 let fail = 0;
-for (const [command, expect, tool = 'Bash'] of [...CASES, ...pathCases]) {
-  const got = run(command, tool);
+const all = [...CASES, ...pathCases, ...WORKTREE_CASES];
+for (const [command, expect, tool = 'Bash', cwd] of all) {
+  const got = run(command, tool, cwd);
   const ok = got === expect;
   if (!ok) fail++;
-  console.log(`${ok ? 'PASS' : 'FAIL'}  expect=${expect.padEnd(5)} got=${got.padEnd(5)} ${command.split('\n')[0]}`);
+  const where = cwd ? (cwd === lone ? ' [lone worktree]' : ' [shared worktree]') : '';
+  console.log(`${ok ? 'PASS' : 'FAIL'}  expect=${expect.padEnd(5)} got=${got.padEnd(5)} ${command.split('\n')[0]}${where}`);
 }
-const total = CASES.length + pathCases.length;
-console.log(`\n${total - fail}/${total} passed`);
+rmSync(tmp, { recursive: true, force: true });
+console.log(`\n${all.length - fail}/${all.length} passed`);
 process.exit(fail ? 1 : 0);

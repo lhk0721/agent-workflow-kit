@@ -1,8 +1,9 @@
 {
   "//": "PreToolUse require-skill gate — repo-owned. An edit whose new text has at least minHangul Hangul characters is denied until the skill named by the first matching path rule has been invoked in this session (marker + ttlHours; a context compaction drops the skill, so the window is short). Deny goes to the model, not the user.",
+  "//exclude": "Verbatim archives — raw captures, transcripts, evidence folders, fixtures, jsonl — must never be 'rewritten' by a writing skill; they are excluded from the gate.",
   "minHangul": 20,
   "ttlHours": 2,
-  "exclude": ["node_modules/**", ".claude/**", "**/*.lock", "**/*.jsonl"],
+  "exclude": ["node_modules/**", ".claude/**", "**/*.lock", "**/*.jsonl", "**/raw/**", "**/transcript*.md", "**/evidence/**", "**/evidence-*/**", "**/fixtures/**"],
   "rules": [
     { "skill": "ko-ui-text", "paths": ["**/*.jsx", "**/*.tsx", "**/*.vue", "**/*.html", "**/i18n/**", "**/locales/**"] },
     { "skill": "ko-writing", "paths": ["**"] }
