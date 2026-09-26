@@ -12,8 +12,10 @@
   2. 빈도 패턴: "~할 수 있다", "또한/따라서/즉"으로 시작하는 문단
   3. 종결어미 혼용: 해라체(~다.) / 하십시오체(~니다.) / 해요체(~요.)
   4. 문단 문장 수: --para 초과
-  5. 헤딩 길이: --heading 초과. 번호("3-1.", "2.")는 빼고 센다
+  5. 헤딩 길이: --heading 초과. 번호("3-1.", "2.")는 빼고 센다. 문장형 헤딩(~다,
+     ~는가, ~나, ~까로 끝남)도 여기서 센다
   6. 볼드 개수: 한 문단에 3개 이상
+  7. 수량 후치: "물음 셋", "이유는 넷이다"처럼 수량이 명사 뒤에 붙은 자리
 
 표, 코드 블록, 인용 블록(>), 목록 항목은 문단 계산에서 뺀다. 인용 블록은 금지
 패턴 검사에서도 뺀다. 인용은 원문이기 때문이다.
@@ -46,6 +48,13 @@ FREQ = [
     ("~할 수 있다", re.compile(r"수 있(다|습니다)")),
 ]
 PARA_STARTERS = re.compile(r"^(또한|따라서|즉|그리고|하지만)[,\s]")
+# 헤딩이 문장으로 끝나는가. 명사구 헤딩은 여기 안 걸린다.
+HEADING_SENTENCE = re.compile(r"(다|는가|인가|나|까|니다|는지)$")
+# 수량이 명사 뒤에 붙은 자리. "둘"은 대명사("다른 둘은")로 더 자주 쓰여 세지 않는다.
+POSTPOSED_COUNT = re.compile(
+    r"[가-힣]{2,}(은|는|이|가|을|를|도)? (셋|넷|다섯|여섯|일곱|여덟|아홉)"
+    r"(이다|입니다|으로|이고|이었다|였다|이|을|를|은|는|[.,)])"
+)
 
 END_DA = re.compile(r"\S{0,2}다[.)]")
 END_HAEYO = re.compile(r"[요죠][.)]")
@@ -215,9 +224,10 @@ def main():
         print("- 없음")
     print()
 
-    # 5. 헤딩 길이
-    print(f"## 5. 헤딩 길이 ({args.heading}자 초과)")
+    # 5. 헤딩 길이와 형태
+    print(f"## 5. 헤딩 ({args.heading}자 초과, 문장형)")
     over = []
+    sentence = []
     for i, (k, l) in enumerate(lines, 1):
         if k != "heading":
             continue
@@ -226,10 +236,16 @@ def main():
         n = len(title.replace(" ", ""))
         if n > args.heading:
             over.append((i, n, title))
+        if HEADING_SENTENCE.search(title.rstrip(".?")):
+            sentence.append((i, title))
     if over:
         for i, n, t in over:
             print(f"- {i}: {n}자. {t}")
-    else:
+    if sentence:
+        print(f"- 문장형 헤딩 {len(sentence)}건 (명사구로 고친다)")
+        for i, t in sentence:
+            print(f"    {i}: {t}")
+    if not over and not sentence:
         print("- 없음")
     print()
 
@@ -239,6 +255,19 @@ def main():
     if bold:
         for i, p, n in bold:
             print(f"- {i}: {n}개. {p[:40]}")
+    else:
+        print("- 없음")
+    print()
+
+    # 7. 수량 후치
+    print("## 7. 수량 후치 (수량은 명사 앞에 둔다)")
+    hits = [(i, l) for i, l in checkable if POSTPOSED_COUNT.search(l)]
+    if hits:
+        print(f"- {len(hits)}건")
+        for i, l in hits[:8]:
+            print(f"    {i}: {l.strip()[:70]}")
+        if len(hits) > 8:
+            print(f"    ... 외 {len(hits) - 8}건")
     else:
         print("- 없음")
 

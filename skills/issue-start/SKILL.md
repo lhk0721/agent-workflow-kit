@@ -48,7 +48,7 @@ reads the title from GitHub.
    checkout: `node_modules`, `.venv`, `.env` are gitignored and did not come along. Run
    installs inside the worktree. Never link `node_modules` from the main checkout — a
    junction there is followed by `git worktree remove` and by `npm ci`, and wipes the main
-   checkout's dependencies (pipeplot, three incidents).
+   checkout's dependencies (three incidents in one repo).
 7. If the summary says `docs/agent-workflow/repo-templates.md` exists, the repo has its own
    richer doc shape that predates the kit. Reshape the seeded doc to it before the first
    commit — keep the filename, the `Document Relations` facts and the first work-log section.

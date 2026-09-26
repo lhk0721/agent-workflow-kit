@@ -6,8 +6,8 @@ description: Run the post-PR cleanup gate with a script instead of from memory �
 # post-pr-cleanup
 
 The cleanup gate in `docs/agent-workflow/git-rules.md` is six checks in a fixed order, and
-each skipped check has a cost with a name: rack-tracker holds 13 worktree branches that were
-never pushed and 8 orphan directories git no longer lists; pipeplot spent 5 commits on
+each skipped check has a measured cost: one repo holds 13 worktree branches that were
+never pushed and 8 orphan directories git no longer lists; another spent 5 commits on
 pointer-line bookkeeping. The script refreshes state first and decides from what git and
 GitHub say now — never from what you remember about the branch.
 
@@ -77,7 +77,7 @@ after a squash merge, `-D` runs — justified only by that proof, and the report
 
 Why the junction step exists: on Windows a `node_modules` junction inside a worktree that
 points at the main checkout's `node_modules` is followed by `git worktree remove` and by
-`npm ci`, which wipes the main checkout's dependencies (pipeplot, three incidents). Never
+`npm ci`, which wipes the main checkout's dependencies (three incidents in one repo). Never
 run `npm ci` in a worktree whose `node_modules` is a link.
 
 ## AGENTS.md pointer lines
