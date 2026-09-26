@@ -142,11 +142,12 @@ const PATH_CASES = [
   [`echo x > /tmp/a && cat /tmp/a > ${GUARDED}out.json`, 'ask'],
 ];
 
-const run = (command, tool, cwd) => {
+const run = (command, tool, cwd, env) => {
   const r = spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify({ tool_name: tool, tool_input: { command } }),
     encoding: 'utf8',
     cwd,
+    env: { ...process.env, AGENT_KIT_GUARD_ASK: '', ...(env || {}) },
   });
   if (r.status !== 0) return `error: ${r.stderr.trim()}`;
   if (!r.stdout.trim()) return 'allow';
@@ -168,13 +169,23 @@ try {
   pathCases = [];
 }
 
+// The ask tier switch: AGENT_KIT_GUARD_ASK=warn demotes every would-be prompt to a note,
+// =off drops it; deny and the warn tier are untouched either way.
+const TIER_CASES = [
+  ['rm -rf build/', 'warn', 'Bash', undefined, { AGENT_KIT_GUARD_ASK: 'warn' }],
+  ['rm -rf build/', 'allow', 'Bash', undefined, { AGENT_KIT_GUARD_ASK: 'off' }],
+  ['git push -f origin x', 'warn', 'Bash', undefined, { AGENT_KIT_GUARD_ASK: 'warn' }],
+  ['rm -rf /', 'deny', 'Bash', undefined, { AGENT_KIT_GUARD_ASK: 'off' }],
+  ['pkill -f serve', 'warn', 'Bash', undefined, { AGENT_KIT_GUARD_ASK: 'off' }],
+];
+
 let fail = 0;
-const all = [...CASES, ...pathCases, ...WORKTREE_CASES];
-for (const [command, expect, tool = 'Bash', cwd] of all) {
-  const got = run(command, tool, cwd);
+const all = [...CASES, ...pathCases, ...WORKTREE_CASES, ...TIER_CASES];
+for (const [command, expect, tool = 'Bash', cwd, env] of all) {
+  const got = run(command, tool, cwd, env);
   const ok = got === expect;
   if (!ok) fail++;
-  const where = cwd ? (cwd === lone ? ' [lone worktree]' : ' [shared worktree]') : '';
+  const where = cwd ? (cwd === lone ? ' [lone worktree]' : ' [shared worktree]') : env ? ` [ask tier ${env.AGENT_KIT_GUARD_ASK}]` : '';
   console.log(`${ok ? 'PASS' : 'FAIL'}  expect=${expect.padEnd(5)} got=${got.padEnd(5)} ${command.split('\n')[0]}${where}`);
 }
 rmSync(tmp, { recursive: true, force: true });

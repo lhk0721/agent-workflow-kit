@@ -160,6 +160,7 @@ if (existsSync('.claude/guard.json')) {
       deny: [...DEFAULTS.deny, ...(repo.deny || [])],
       askPaths: [...DEFAULTS.askPaths, ...(repo.askPaths || [])],
       warn: [...DEFAULTS.warn, ...(repo.warn || [])],
+      askTier: repo.askTier,
     };
   } catch { /* malformed repo config must not disable the guard */ }
 }
@@ -167,11 +168,25 @@ if (existsSync('.claude/guard.json')) {
 // A rule may be scoped to one shell and may carry a runtime condition.
 const hits = (r) => (!r.tool || r.tool === tool) && new RegExp(r.re, 'i').test(cmd) && (!r.when || r.when());
 
+// The ask tier can be turned down without editing this file. A user who runs in bypass
+// mode and has said "no prompts until I say otherwise" used to get that by planting a
+// `process.exit(0)` at the top of the hook — an uncommitted edit that also switched deny
+// off, drifted between worktrees, and hid from doctor. The switch keeps deny, keeps the
+// rule text, and is visible: AGENT_KIT_GUARD_ASK (personal, wins) or guard.json askTier
+// (repo). `warn` turns every would-be prompt into a note the model reads; `off` drops it.
+const askTier = String(process.env.AGENT_KIT_GUARD_ASK || cfg.askTier || 'ask').toLowerCase();
+const demoted = [];
+const ask = (reason) => {
+  if (askTier === 'off') return;
+  if (askTier === 'warn') { demoted.push(`(ask tier is warn) ${reason}`); return; }
+  decide('ask', `${reason} — confirm before running`);
+};
+
 for (const r of cfg.deny) {
   if (hits(r)) decide('deny', `${r.why} — refused`);
 }
 for (const r of cfg.ask) {
-  if (hits(r)) decide('ask', `${r.why} — confirm before running`);
+  if (hits(r)) ask(r.why);
 }
 
 // A guarded path only matters when the command can change it — and only when the
@@ -233,15 +248,15 @@ for (const simple of splitSimple(cmd)) {
   const writes = WRITE_CMDS.test(head);
   const redirectTargets = [...head.matchAll(REDIRECT_TARGET)].map((m) => m[1]);
   for (const p of cfg.askPaths) {
-    if (writes && head.includes(p)) decide('ask', `writes to a guarded path (${p}) — confirm before running`);
-    if (redirectTargets.some((t) => t.includes(p))) decide('ask', `redirects output into a guarded path (${p}) — confirm before running`);
-    if (body && body.includes(p) && DELETE_CALLS.test(body)) decide('ask', `script fed to an interpreter deletes inside a guarded path (${p}) — confirm before running`);
+    if (writes && head.includes(p)) ask(`writes to a guarded path (${p})`);
+    if (redirectTargets.some((t) => t.includes(p))) ask(`redirects output into a guarded path (${p})`);
+    if (body && body.includes(p) && DELETE_CALLS.test(body)) ask(`script fed to an interpreter deletes inside a guarded path (${p})`);
   }
 }
 
 // Warn tier last: nothing above decided, so the call runs — with a note. All matching
-// notes travel together; one output is all a hook gets.
-const notes = cfg.warn.filter(hits).map((r) => r.why);
+// notes travel together; one output is all a hook gets. Demoted asks come first.
+const notes = [...demoted, ...cfg.warn.filter(hits).map((r) => r.why)];
 if (tool === 'Bash' && heredocWritesCodeWithBackslash(raw)) {
   notes.push('an unquoted heredoc writing a code file with backslashes in it — the shell strips backslashes; write code files with the Write tool (or quote the delimiter: <<\'EOF\')');
 }

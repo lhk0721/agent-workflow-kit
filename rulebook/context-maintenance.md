@@ -130,6 +130,14 @@ construction, so it never gets written into `AGENTS.md`.
 | `ask` | confirmation even under bypass | recursive delete, history rewrite, raw device, a write or redirect into a guarded path, publish actions (`docker push`, `wrangler deploy`, `npm publish`, `gh release create`), `git checkout`/`switch` when the checkout has more than one worktree |
 | `warn` | runs; one line of context reaches the model | `pkill -f`, a heredoc writing `\\` into a code file (an unquoted heredoc halves the backslashes), PowerShell `ssh … 2>&1`, an inline `-m "$(…)"` body, plain `git worktree remove` |
 
+Turning prompts off is a switch, not an edit: `AGENT_KIT_GUARD_ASK=warn|off` in the
+user's `~/.claude/settings.json` `env` block (personal, every repo on that machine) or
+`askTier` in `.claude/guard.json` (repo-wide). `warn` demotes every would-be prompt to a
+note the model still reads; `off` drops it; `deny` applies either way, and doctor prints
+the tier. A `process.exit(0)` planted at the top of the hook did the same job once — it
+also switched deny off, differed between the main checkout and its worktrees, and was
+invisible to every check.
+
 Nuisance traps go to `warn`, never to `ask`. A prompt the user learns to click through
 protects nothing — when fifteen prompts in a row are harmless, the sixteenth gets the
 same reflex — and the party that made the mistake is the agent, which a warning reaches

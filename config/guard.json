@@ -7,5 +7,7 @@
   "//askPaths": "Plain substrings. Any command containing one is asked about. Use for paths that hold irreplaceable data (capture runs, datasets, device state).",
   "askPaths": [],
   "//warn": "Allowed, but the model gets a note (additionalContext) before running. Same shape as ask. For commands that are not destructive but have bitten before — a device tool that hangs without `timeout`, a flag that kills the wrong process.",
-  "warn": []
+  "warn": [],
+  "//askTier": "How the ask tier behaves in this repo: \"ask\" (default) prompts; \"warn\" turns every would-be prompt into a note for the model; \"off\" drops it. deny always applies. A user overrides it for every repo on their machine with the env var AGENT_KIT_GUARD_ASK (settings.json env block) — the personal switch wins.",
+  "askTier": "ask"
 }

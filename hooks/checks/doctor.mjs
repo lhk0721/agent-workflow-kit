@@ -38,6 +38,16 @@ try { settings = JSON.parse(readFileSync('.claude/settings.json', 'utf8')); } ca
 const registered = (event, script) => (settings.hooks?.[event] || []).some((g) =>
   (g.hooks || []).some((h) => (h.command || '').includes(script)));
 check('PreToolUse guard registered in .claude/settings.json', registered('PreToolUse', 'guard-destructive.mjs'), 'reinstall the kit (install.mjs)');
+// The ask tier can be turned down per user (env) or per repo (guard.json). Not a
+// failure — but it must be visible, or "the guard is on" means less than it says.
+{
+  let repoTier;
+  try { repoTier = JSON.parse(readFileSync('.claude/guard.json', 'utf8')).askTier; } catch {}
+  const tier = String(process.env.AGENT_KIT_GUARD_ASK || repoTier || 'ask').toLowerCase();
+  if (tier !== 'ask') {
+    console.log(`WARN guard ask tier is '${tier}' (${process.env.AGENT_KIT_GUARD_ASK ? 'AGENT_KIT_GUARD_ASK' : '.claude/guard.json askTier'}) — prompts are ${tier === 'off' ? 'dropped' : 'demoted to notes for the model'}; deny still applies`);
+  }
+}
 for (const s of ['agents-freshness.mjs', 'repo-tools.mjs', 'memory-freshness.mjs']) {
   check(`SessionStart ${s} registered`, registered('SessionStart', s), 'reinstall the kit (install.mjs)');
 }
