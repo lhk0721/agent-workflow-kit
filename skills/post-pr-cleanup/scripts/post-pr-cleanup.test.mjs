@@ -10,7 +10,7 @@
 // Dry run must refuse without --assume-landed, classify `remove` with it, and --apply
 // must leave: no worktree, no local/remote branch, pointer gone, main node_modules intact.
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import {
   parseConfig, parseArgs, parseWorktreeList, parseOriginUrl, issueNumberOf, classify,
   removeRacLines, listRacPointers, leftoverPointers, findOrphans, isLink, unlinkJunction, norm,
+  isInside, removalOutcome, isEmptyDir,
 } from './post-pr-cleanup.mjs';
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'post-pr-cleanup.mjs');
@@ -256,6 +257,98 @@ test('integration: merged branch + worktree + pointer, gh absent', () => {
     assert.deepEqual(out.leftovers, []); assert.deepEqual(out.rows, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ---- a held directory and the run's own worktree ----
+test('isInside + removalOutcome + isEmptyDir', () => {
+  assert.equal(isInside('/r/repo-7', '/r/repo-7'), true);
+  assert.equal(isInside('/r/repo-7/src/x', '/r/repo-7/'), true);
+  assert.equal(isInside('/r/repo-70', '/r/repo-7'), false, 'prefix of a sibling is not inside');
+  assert.equal(isInside('/r/repo', '/r/repo-7'), false);
+  if (process.platform === 'win32') assert.equal(isInside('C:\\R\\Repo-7\\a', 'c:/r/repo-7'), true);
+  assert.equal(removalOutcome({ stillListed: true, dirExists: true }), 'failed');
+  assert.equal(removalOutcome({ stillListed: false, dirExists: true }), 'dir-left');
+  assert.equal(removalOutcome({ stillListed: false, dirExists: false }), 'removed');
+  const root = mkdtempSync(join(scratch, 'empty-'));
+  try {
+    assert.equal(isEmptyDir(root), true);
+    writeFileSync(join(root, 'f'), 'x');
+    assert.equal(isEmptyDir(root), false);
+    assert.equal(isEmptyDir(join(root, 'missing')), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// The 2026-09-28 incident: a Claude Code session sat in a worktree when the cleanup removed
+// it. On Windows git exits 1 ("Permission denied") yet drops the worktree entry, and the
+// empty directory stays. The script must count the worktree as removed, still delete the
+// branch, and name the directory. Separately, it must refuse to remove the worktree it
+// runs from.
+test('integration: worktree held by a running program; run started inside a worktree', () => {
+  const root = mkdtempSync(join(scratch, 'post-pr-held-'));
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: join(root, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com',
+    AGENT_KIT_GH: join(root, 'no-gh-here'),
+  };
+  writeFileSync(env.GIT_CONFIG_GLOBAL, '[init]\n\tdefaultBranch = main\n[core]\n\tautocrlf = false\n');
+  const git = (cwd, ...a) => execFileSync('git', a, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const run = (cwd, ...a) => spawnSync(process.execPath, [SCRIPT, ...a], { cwd, env, encoding: 'utf8' });
+  let holder = null;
+  try {
+    const origin = join(root, 'origin.git'); mkdirSync(origin); git(origin, 'init', '--bare', '-b', 'main');
+    const repo = join(root, 'repo');
+    git(root, 'clone', '-q', origin, repo);
+    writeFileSync(join(repo, 'README.md'), '# t\n');
+    git(repo, 'add', '-A'); git(repo, 'commit', '-q', '-m', 'chore: seed'); git(repo, 'push', '-q', 'origin', 'main');
+    git(repo, 'remote', 'set-head', 'origin', 'main');
+    const wts = {};
+    for (const [n, b] of [[8, '8-fix-a'], [9, '9-fix-b']]) {
+      const wt = join(root, `repo-${n}`); wts[n] = wt;
+      git(repo, 'worktree', 'add', '-q', '--no-track', wt, '-b', b, 'origin/main');
+      writeFileSync(join(wt, `${n}.txt`), 'x\n');
+      git(wt, 'add', '-A'); git(wt, 'commit', '-q', '-m', `fix: ${n}`);
+      git(wt, 'push', '-q', '-u', 'origin', b);
+      git(repo, 'merge', '-q', '--no-ff', '-m', `merge #${n}`, b);
+    }
+    git(repo, 'push', '-q', 'origin', 'main');
+    // a "session" sitting in repo-8, like a Claude Code session started there
+    holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { cwd: wts[8], stdio: 'ignore' });
+
+    // dry run from inside repo-9 warns about both hazards
+    let r = run(wts[9], '--assume-landed');
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /before --apply: close every Claude Code session/);
+    assert.match(r.stdout, /this run started inside .*repo-9/);
+
+    r = run(wts[9], '--apply', '--assume-landed', '--json');
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(norm(out.currentDirWorktree), norm(wts[9]));
+    // repo-9: the run's own directory — skipped, worktree and branch kept
+    assert.match(git(repo, 'worktree', 'list'), /repo-9/);
+    assert.match(git(repo, 'branch', '--list', '9-fix-b'), /9-fix-b/);
+    // repo-8: gone from git, branch deleted locally and remotely, whatever happened to the directory
+    assert.doesNotMatch(git(repo, 'worktree', 'list'), /repo-8/);
+    assert.equal(git(repo, 'branch', '--list', '8-fix-a'), '');
+    assert.equal(git(origin, 'branch', '--list', '8-fix-a'), '');
+    if (process.platform === 'win32') {
+      assert.equal(existsSync(wts[8]), true, 'Windows: the held directory stays');
+      assert.deepEqual(out.dirsLeft.map(norm), [norm(wts[8])]);
+    } else {
+      assert.deepEqual(out.dirsLeft, []);
+    }
+
+    // the human report names the left directory and what to do with it
+    if (process.platform === 'win32') {
+      holder.kill(); holder = null;
+      const r2 = run(repo, '--assume-landed');
+      assert.match(r2.stdout, /repo-8 {2}\(empty: a worktree whose removal a running program blocked/);
+    }
+  } finally {
+    if (holder) holder.kill();
+    rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
   }
 });
 

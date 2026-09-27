@@ -13,18 +13,22 @@ GitHub say now — never from what you remember about the branch.
 
 ## Sequence
 
-1. Dry run, always first, from any worktree of the repo:
+1. Dry run, always first, from the main checkout:
 
    ```
    node .claude/skills/post-pr-cleanup/scripts/post-pr-cleanup.mjs
    ```
 
    Show the user the table and the per-branch reasons. Nothing is changed by a dry run
-   (it does run `git fetch --all --prune`, which is the point).
+   (it does run `git fetch --all --prune`, which is the point). It works from any worktree,
+   but `--apply` skips the worktree it runs in: removing it would leave the shell — and a
+   Claude Code session pinned there — in an empty directory.
 2. Ask for explicit confirmation of exactly which `remove`/`prunable` rows will go. This is
    the destructive half, and the Claude Code guard cannot see inside a script: it asks
    about `git worktree remove --force` and `git branch -D` when *you* type them, not when
-   the script runs them. The confirmation is on you.
+   the script runs them. The confirmation is on you. In the same question, ask the user to
+   close every Claude Code session and editor opened inside those worktrees (see "When the
+   directory stays behind").
 3. Apply:
 
    ```
@@ -80,6 +84,28 @@ points at the main checkout's `node_modules` is followed by `git worktree remove
 `npm ci`, which wipes the main checkout's dependencies (three incidents in one repo). Never
 run `npm ci` in a worktree whose `node_modules` is a link.
 
+## When the directory stays behind
+
+On Windows a directory that a running program uses as its current directory cannot be
+deleted. `git worktree remove` then drops git's entry for the worktree anyway and exits 1
+with `failed to delete '<dir>': Permission denied`; the empty directory stays, even after
+the program exits. The usual program is a Claude Code session started in that worktree.
+That session is now stuck: worktree isolation refuses every git command outside its own
+worktree, the directory is no worktree any more, and `/clear` keeps the same directory.
+Reproduced 2026-09-28 on Windows 11 with git 2.51.2.
+
+The script judges the removal by `git worktree list`, not by the exit code. When the entry
+is gone it counts the worktree as removed, deletes the branch as usual, and lists the
+directory under "left on disk". Later runs list it under orphan directories, marked empty.
+Tell the user:
+
+- close the program still in it (usually a Claude Code session or an editor), then delete
+  the empty directory;
+- or, if that session should keep working, give it a worktree back from the main checkout:
+  `git worktree add <dir> <branch>` for an existing branch (remove the branch's other
+  worktree first), or `issue-start ... --path <dir>` for new work. `git worktree add`
+  accepts an empty directory, and the session can run git again without moving.
+
 ## AGENTS.md pointer lines
 
 The rule is that a work item's line under `## Recent Active Context` is removed **as the
@@ -102,7 +128,10 @@ On `shared` and `external` the file is never edited.
   the script lists them with a reason and touches nothing.
 - Orphan directories: `../<repo>-*` (sibling root) or `.claude/worktrees/*` (claude root)
   that `git worktree list` does not know. They are reported, never deleted — a directory
-  git does not know might be anything. Inspect, then remove by hand with the user's OK.
+  git does not know might be anything. Inspect, then remove by hand with the user's OK. An
+  empty one is marked: it is a worktree whose removal a running program blocked.
+- A worktree skipped because the run started inside it: rerun `--apply` from the main
+  checkout.
 - Committing the `AGENTS.md` edit on the solo profile.
 - The base fast-forward on `shared` — `git pull --ff-only` on the main checkout if it was
   not on the base branch or had tracked changes when the script ran.

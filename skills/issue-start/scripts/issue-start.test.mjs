@@ -4,15 +4,18 @@
 //   node .claude/skills/issue-start/scripts/issue-start.test.mjs
 // Covers the pure parts only: branch naming, worktree paths for both roots, pointer
 // insertion into the three AGENTS.md shapes, registry-row append, template fill, the
-// yaml reader, base-ref precedence. No git, no gh — main() is guarded and never runs here.
+// yaml reader, base-ref precedence, the --path target check (a temp directory is the only
+// file-system use). No git, no gh — main() is guarded and never runs here.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   parseConfig, parseArgs, slugify, branchName, resolveType, worktreePath, fillTemplate,
   registryRow, appendRegistryRow, racLine, insertRacPointer, listRacPointers, removeRacLines,
   refreshRac, detectPrereqs, issueBody, parseIssueNumber, firstCommitCommand, resolveBaseRef,
+  targetProblem,
 } from './issue-start.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +88,19 @@ test('worktreePath: sibling and claude roots', () => {
   assert.equal(worktreePath('claude', root, 252, 'landing-hero-video').replaceAll('\\', '/'), 'C:/code/pipeplot/.claude/worktrees/252-landing-hero');
   assert.equal(worktreePath('claude', root, 7, 'x').replaceAll('\\', '/'), 'C:/code/pipeplot/.claude/worktrees/7-x');
   assert.throws(() => worktreePath('elsewhere', root, 1, 'x'), /sibling\|claude/);
+});
+
+test('parseArgs --path + targetProblem: missing or empty directory only', () => {
+  assert.equal(parseArgs(['--path', 'C:/code/pipeplot-10']).path, 'C:/code/pipeplot-10');
+  assert.throws(() => parseArgs(['--path']), /needs a value/);
+  const root = mkdtempSync(join(tmpdir(), 'issue-start-path-'));
+  try {
+    assert.equal(targetProblem(join(root, 'missing')), null);
+    assert.equal(targetProblem(root), null, 'an empty leftover directory is reused');
+    writeFileSync(join(root, 'f.txt'), 'x');
+    assert.match(targetProblem(root), /not empty/);
+    assert.match(targetProblem(join(root, 'f.txt')), /is a file/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 // ---- template fill ----
