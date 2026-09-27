@@ -105,7 +105,8 @@ make. None of them commits — the pre-commit review gate stays with the user.
 - Triggers: "이슈 만들어", "새 작업 시작", "worktree 파줘", "start issue", "new task".
 - `scripts/issue-start.mjs` (`--dry-run` prints every step and runs none):
   `gh issue create` from the issue template → branch `<n>-<type>-<slug>` from
-  `base_branch` → worktree per `worktree_root` → management document from the full
+  `base_branch` → worktree per `worktree_root`, or in `--path <dir>` (missing or empty;
+  for a session stuck in an empty leftover directory) → management document from the full
   template inside the worktree → Master Registry row (skipped when `INDEX.md` is
   generated) → Recent Active Context pointer line → prints the `EnterWorktree` path,
   the dependency setup (`npm ci` / `uv sync`) and the first-commit command.
@@ -126,9 +127,11 @@ make. None of them commits — the pre-commit review gate stays with the user.
   remote branch only when landed; verifies the Recent Active Context line is gone and
   removes a leftover on `solo` only; on `external`, `merge --ff-only upstream/<base>` and
   the fork's base fast-forwarded through `gh api -X PATCH .../git/refs/heads/<base>`.
-  Orphan worktree directories are reported. Ends with `git worktree list` and a
-  branch/PR table.
-- Does not: remove anything dirty or unlanded; delete orphan directories; close issues.
+  A worktree whose directory stays on disk (a running program holds it) still counts as
+  removed once git drops its entry; the directory is reported. Orphan worktree
+  directories are reported. Ends with `git worktree list` and a branch/PR table.
+- Does not: remove anything dirty or unlanded; remove the worktree it runs in; delete
+  orphan or left-behind directories; close issues.
 - Reads: `profile`, `base_branch`, `worktree_root`, `protected_branches`, `issues_root`.
 
 ### ui-evidence

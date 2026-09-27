@@ -76,7 +76,8 @@ Does, in this order, and rolls back the worktree and branch if any later step fa
   `### Done criteria`, `### Umbrella` when `--parent`) and reads the number from the URL
 - checks `git branch --list '<n>-*'` AND `git branch -r --list '*/<n>-*'`; aborts on a hit
 - `git worktree add --no-track <path> -b <n>-<type>-<slug> <base>`; sibling root →
-  `../<repo>-<n>`, claude root → `.claude/worktrees/<n>-<first-two-slug-words>`
+  `../<repo>-<n>`, claude root → `.claude/worktrees/<n>-<first-two-slug-words>`, `--path`
+  → that directory; the path must be missing or an empty directory
 - writes `<issues_root>/<type>/<branch>.md` from `assets/management-doc-template.md`
   (`<issues_root>/feat/` is honoured as the `feature` directory; `sub-issues/<type>/` is
   used when it exists and `<type>/` does not)
@@ -107,9 +108,31 @@ doc. The GitHub sub-issue link itself is a separate step the script does not tak
 needs the child's database id, not its number); the summary prints the `gh api` command.
 Run it when the user wants the link, or leave it for the umbrella's owner.
 
+## When the session is stuck in an empty directory
+
+Symptom: the session started in a worktree that was later removed while the session was
+still open in it (on Windows the empty directory stays behind — see `post-pr-cleanup`,
+"When the directory stays behind"). Worktree isolation refuses every git command,
+`EnterWorktree` fails, and `/clear` keeps the same directory. The session cannot move itself
+out, and it must not try to get round the refusal.
+
+Put the new worktree in that directory instead. Ask the user to run, from the main
+checkout in their own terminal:
+
+```
+node .claude/skills/issue-start/scripts/issue-start.mjs --type <t> --title "<title>" --slug <slug> --path <that directory>
+```
+
+`--path` replaces the `worktree_root` layout and accepts only a missing or empty directory.
+It is checked before the issue is created. Once `git worktree add` has run, the session
+already sitting there can run git; it needs no `EnterWorktree`. For a branch that already
+exists, the same fix is plain git: remove the branch's other worktree, then
+`git worktree add <that directory> <branch>`.
+
 ## When it fails
 
 The script exits non-zero with one plain line and leaves no half-made worktree. Two cases
 need a decision from you: a branch for that issue already exists (continue there), or the
 issue was created but a later step failed (the message says `--issue <n>` — reuse it, do not
-open a duplicate).
+open a duplicate). The worktree path must be missing or an empty directory; anything else
+stops the script.

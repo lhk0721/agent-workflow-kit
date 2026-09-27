@@ -7,7 +7,11 @@
 // Run from the repo (any worktree of it; the main checkout is resolved through git):
 //   node .claude/skills/issue-start/scripts/issue-start.mjs \
 //     --type feature --title "Login form" --slug login-form [--parent 12] \
-//     [--issue 34] [--body-file f] [--base origin/main] [--worktree-root sibling|claude] [--dry-run]
+//     [--issue 34] [--body-file f] [--base origin/main] [--worktree-root sibling|claude]
+//     [--path <dir>] [--dry-run]
+//
+// --path puts the worktree in <dir> instead of the worktree_root layout. <dir> must be
+// missing or empty; its use is a Claude Code session stuck in an empty leftover directory.
 //
 // It never commits and never pushes: the Pre-Commit Review Gate (show the user, wait for
 // approval, then commit) stays with the agent. It never lets a tool create the worktree
@@ -17,7 +21,7 @@
 // hand-done version drifts (branch named before the issue exists, worktree branched from
 // a stale local main, pointer line forgotten). A script does the steps in the one order
 // the rulebook allows, or does nothing at all.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -75,7 +79,7 @@ export const loadConfig = (path = 'agent-system.yaml') =>
 export function parseArgs(argv) {
   const out = { dryRun: false };
   const takes = { '--type': 'type', '--title': 'title', '--slug': 'slug', '--parent': 'parent',
-    '--body-file': 'bodyFile', '--issue': 'issue', '--base': 'base', '--worktree-root': 'worktreeRoot' };
+    '--body-file': 'bodyFile', '--issue': 'issue', '--base': 'base', '--worktree-root': 'worktreeRoot', '--path': 'path' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') { out.dryRun = true; continue; }
@@ -122,6 +126,18 @@ export function worktreePath(mode, mainRoot, issue, slug) {
   if (mode === 'sibling') return join(dirname(mainRoot), `${basename(mainRoot)}-${issue}`);
   if (mode === 'claude') return join(mainRoot, '.claude', 'worktrees', `${issue}-${slug.split('-').slice(0, 2).join('-')}`);
   throw new Error(`worktree_root '${mode}' is not sibling|claude`);
+}
+
+// The worktree may land in a missing directory or an empty one, never anywhere else. An
+// empty one is what a removed worktree leaves when a running program — typically a Claude
+// Code session started there — kept git from deleting it. Such a session cannot run git at
+// all (worktree isolation) and cannot move itself out; `git worktree add` into that very
+// directory (`--path`) gives it a working checkout again. Verified 2026-09-28.
+export function targetProblem(p, fs = { existsSync, statSync, readdirSync }) {
+  if (!fs.existsSync(p)) return null;
+  if (!fs.statSync(p).isDirectory()) return `worktree path is a file: ${p}`;
+  if (fs.readdirSync(p).length) return `worktree path already exists and is not empty: ${p}`;
+  return null;
 }
 
 export function fillTemplate(template, vars) {
@@ -294,7 +310,7 @@ const norm = (p) => p.replaceAll('\\', '/');
 
 const USAGE = `usage: node issue-start.mjs --type <t> --title "<title>" --slug <desc>
          [--parent <n>] [--body-file <f>] [--issue <n>] [--base <ref>]
-         [--worktree-root sibling|claude] [--dry-run]`;
+         [--worktree-root sibling|claude] [--path <dir>] [--dry-run]`;
 
 function printPrereqs(prereqs) {
   console.log('  2. prerequisites a fresh worktree lacks (gitignored; git does not copy them):');
@@ -330,6 +346,9 @@ function main() {
   if (!slug) fail(`--slug '${args.slug}' has no usable characters`);
   const mode = args.worktreeRoot || cfg.worktree_root || 'sibling';
   if (!['sibling', 'claude'].includes(mode)) fail(`--worktree-root must be sibling|claude (got '${mode}')`);
+  // --path is checked before anything is created: a bad one must not leave an issue behind.
+  const wtFor = (n) => norm(args.path ? resolve(args.path) : worktreePath(mode, mainRoot, n, slug));
+  if (args.path) { const p = targetProblem(wtFor(0)); if (p) fail(p); }
 
   let typeInfo;
   try { typeInfo = resolveType(args.type, cfg, (p) => existsSync(join(mainRoot, p))); } catch (e) { fail(e.message); }
@@ -372,7 +391,7 @@ function main() {
   if (args.dryRun) {
     const n = args.issue || '<n>';
     const branch = branchName(n, type, slug);
-    const wt = norm(worktreePath(mode, mainRoot, n, slug));
+    const wt = wtFor(n);
     const docPath = `${docDir}/${branch}.md`;
     console.log('issue-start: DRY RUN — nothing will be created\n');
     console.log(`  main checkout   ${mainRoot}`);
@@ -380,7 +399,7 @@ function main() {
     console.log(`  issue           ${args.issue ? '#' + args.issue + ' (reuse)' : 'gh issue create --title ' + JSON.stringify(title) + (args.bodyFile ? ' --body-file ' + args.bodyFile : ' --body-file <kit template>')}`);
     console.log(`  type            ${type}${type !== args.type.toLowerCase() ? ' (from ' + args.type + ')' : ''}`);
     console.log(`  branch          ${branch}   from ${baseRef} @ ${baseSha.slice(0, 7)}`);
-    console.log(`  worktree        ${wt}`);
+    console.log(`  worktree        ${wt}${args.path ? (existsSync(wt) ? '   (--path; the empty directory is reused)' : '   (--path)') : ''}`);
     console.log(`  management doc  ${wt}/${docPath}`);
     console.log(`  registry        ${registryFile ? registryFile + '  +1 row' : '(INDEX.md exists — registry row skipped)'}`);
     console.log(`  AGENTS.md       ${existsSync(join(mainRoot, 'AGENTS.md')) ? 'pointer line under ## Recent Active Context' : '(missing in repo — pointer skipped)'}`);
@@ -427,8 +446,10 @@ function main() {
   }
 
   // ---- 3. worktree ----
-  const wt = norm(worktreePath(mode, mainRoot, issue, slug));
-  if (existsSync(wt)) fail(`worktree path already exists: ${wt}`);
+  const wt = wtFor(issue);
+  const reused = existsSync(wt);
+  const problem = targetProblem(wt);
+  if (problem) fail(problem);
   const made = { worktree: null, branch: null };
   const cleanup = (why) => {
     console.error('issue-start: ' + why + ' — rolling back');
@@ -486,6 +507,7 @@ function main() {
     console.log('\nnext:');
     console.log(`  1. move in:  EnterWorktree  path: ${wt}`);
     console.log('     (the worktree exists — never let EnterWorktree create one; it would branch from a local ref)');
+    if (reused) console.log('     (an empty directory was reused: a session already sitting in it needs no EnterWorktree — it can run git there now)');
     printPrereqs(prereqs);
     if (richTemplate) console.log("  3. docs/agent-workflow/repo-templates.md exists — adapt the seeded doc to the repo's own shape before the first commit");
     console.log('  4. show the user the seeded files, wait for approval (Pre-Commit Review Gate), then in the worktree:');

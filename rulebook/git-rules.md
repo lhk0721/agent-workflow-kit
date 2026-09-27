@@ -134,6 +134,9 @@ NEVER clean up from memory: refresh state first with `git fetch --prune`,
   inside it: `git worktree remove <path>`. On Windows, unlink a `node_modules` junction
   first — a recursive delete can follow it into the directory it points at. The guard
   warns on a plain `git worktree remove`; the skill's checks are what make it safe.
+  Remove a worktree from outside it, after every Claude Code session and editor opened
+  inside it is closed: on Windows the directory a program sits in cannot be deleted, git
+  drops the worktree anyway, and a session left in the empty directory cannot run git.
 - Delete the local branch only after
   `git log --right-only --cherry-pick --oneline <base>...<branch>` prints
   nothing — after a squash merge `git branch -d` protects nothing; this check does.

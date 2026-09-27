@@ -13,7 +13,8 @@
 // from what git and GitHub say now.
 //
 // What it never does: touch a worktree with uncommitted work, delete a branch whose commits
-// are not provably on the base, delete a directory git does not list, or commit anything.
+// are not provably on the base, delete a directory git does not list, remove the worktree
+// it runs from, or commit anything.
 import { existsSync, lstatSync, readdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -83,6 +84,28 @@ export function parseArgs(argv) {
 export const norm = (p) => String(p).replaceAll('\\', '/');
 // Windows paths compare case-insensitively; git prints them as it stored them.
 const samePath = (a, b) => process.platform === 'win32' ? norm(a).toLowerCase() === norm(b).toLowerCase() : norm(a) === norm(b);
+
+// Is `p` the directory `dir` or somewhere below it? The script refuses to remove the
+// worktree it runs from: the shell — often a Claude Code session — would be left in an
+// empty directory it cannot use.
+export function isInside(p, dir) {
+  const a = norm(resolve(p)).replace(/\/+$/, ''), b = norm(resolve(dir)).replace(/\/+$/, '');
+  const [x, y] = process.platform === 'win32' ? [a.toLowerCase(), b.toLowerCase()] : [a, b];
+  return x === y || x.startsWith(y + '/');
+}
+
+// What `git worktree remove` really did. When it cannot delete the directory it still
+// deletes git's entry for the worktree, then exits 1 with "failed to delete '<dir>':
+// Permission denied". On Windows that happens whenever a running program has the directory
+// as its current directory — typically a Claude Code session or an editor started there.
+// Reproduced 2026-09-28 (Windows 11, git 2.51.2): entry gone, empty directory left, still
+// there after the program exits. The exit code alone misreports it, so judge by the list.
+export function removalOutcome({ stillListed, dirExists }) {
+  if (stillListed) return 'failed';
+  return dirExists ? 'dir-left' : 'removed';
+}
+
+export const isEmptyDir = (p) => { try { return readdirSync(p).length === 0; } catch { return false; } };
 
 // `git worktree list --porcelain`: stanzas separated by blank lines; a missing directory
 // shows as `prunable <reason>`.
@@ -338,9 +361,11 @@ function main() {
   ]));
   if (!rows.length) say('  (no worktrees besides the main checkout)');
   for (const r of rows) say(`    ${pad(r.cls, 15)} ${r.branch || r.path}: ${r.reason}`);
+  const hereRow = rows.find((r) => r.cls === 'remove' && isInside(process.cwd(), r.path)) || null;
 
   // 4. apply
   const removedBranches = new Set();
+  const dirsLeft = [];
   const agentsPath = join(mainRoot, 'AGENTS.md');
   const mainBranch = tryRun('git', ['symbolic-ref', '--short', '-q', 'HEAD'], { cwd: mainRoot });
   const mainClean = (tryRun('git', ['status', '--porcelain=v1', '-uno'], { cwd: mainRoot }) || '') === '';
@@ -354,9 +379,23 @@ function main() {
     for (const r of rows) {
       if (r.cls !== 'remove' && r.cls !== 'prunable') continue;
       say(`- ${r.branch}`);
+      if (r === hereRow) { say(`  skip  ${r.path} is this run's current directory — removing it would strand this shell there; rerun from the main checkout (${mainRoot})`); continue; }
       if (r.junction) step(`unlink node_modules junction in ${r.path} (link only; target untouched)`, () => unlinkJunction(join(r.path, 'node_modules')));
       if (r.cls === 'prunable') step('git worktree prune', () => sh('git', ['worktree', 'prune'], { cwd: mainRoot }));
-      else if (step(`git worktree remove ${r.path}`, () => sh('git', ['worktree', 'remove', r.path], { cwd: mainRoot })) === null) continue;
+      else {
+        let err = '';
+        try { sh('git', ['worktree', 'remove', r.path], { cwd: mainRoot }); } catch (e) { err = String(e.stderr || e.message).trim().split('\n')[0]; }
+        const listOut = tryRun('git', ['worktree', 'list', '--porcelain'], { cwd: mainRoot });
+        const stillListed = listOut === null || parseWorktreeList(listOut).some((w) => samePath(w.path, r.path));
+        const outcome = removalOutcome({ stillListed, dirExists: existsSync(r.path) });
+        if (outcome === 'failed') {
+          failures.push(`git worktree remove ${r.path}: ${err || 'still listed'}`);
+          say(`  FAIL  git worktree remove ${r.path}: ${err || 'still listed'}`);
+          continue;
+        }
+        say(`  ok    git worktree remove ${r.path}`);
+        if (outcome === 'dir-left') { dirsLeft.push(r.path); say(`  warn  the directory stays on disk (${err || 'not deleted'}) — see "left on disk" below`); }
+      }
 
       if (!r.landed) { say(`  keep  branch ${r.branch} (commits not on base)`); continue; }
       // -d first. After a squash merge git cannot see the merge and -d refuses; the
@@ -418,7 +457,7 @@ function main() {
   });
 
   if (args.json) {
-    console.log(JSON.stringify({ apply: args.apply, mainRoot, base, baseSha, profile: cfg.profile, rows, orphans, branches, leftovers, racRemoved, failures }, null, 2));
+    console.log(JSON.stringify({ apply: args.apply, mainRoot, base, baseSha, profile: cfg.profile, rows, orphans, dirsLeft, currentDirWorktree: hereRow?.path || null, branches, leftovers, racRemoved, failures }, null, 2));
   } else {
     say('\nworktrees:\n' + wtOut.replace(/^/gm, '  '));
     say('\nbranches:');
@@ -426,7 +465,14 @@ function main() {
     if (branches.some((b) => b.tags.includes('merged'))) say(`  [merged] = holds no commits beyond ${base}: landed, or branched and never started — git cannot tell which`);
     if (orphans.length) {
       say(`\norphan directories (look like worktrees, unknown to git — NOT deleted; inspect, then remove by hand):`);
-      for (const o of orphans) say('  ' + o);
+      for (const o of orphans) say('  ' + o + (isEmptyDir(o) ? '  (empty: a worktree whose removal a running program blocked — close it, then delete)' : ''));
+    }
+    if (dirsLeft.length) {
+      say('\nleft on disk (git no longer lists these worktrees, but the directory stayed):');
+      for (const d of dirsLeft) say('  ' + d);
+      say('  A running program still has each one open — on Windows usually a Claude Code session or an editor started inside it.');
+      say('  Close that program, then delete the empty directory. A Claude Code session left there cannot run git: worktree');
+      say('  isolation refuses git outside its own worktree. Close it, or give it a worktree back: git worktree add <dir> <branch>');
     }
     if (leftovers.length) {
       say('\nAGENTS.md pointers:');
@@ -435,14 +481,19 @@ function main() {
       else if (args.apply) say(`  not edited (profile ${cfg.profile}): a PR-only base branch cannot take this edit here`);
     }
     if (args.apply) {
-      const manual = rows.filter((r) => !['remove', 'prunable', 'keep-open'].includes(r.cls));
-      if (manual.length) { say('\nstill manual:'); for (const r of manual) say(`  ${pad(r.cls, 15)} ${r.branch || r.path}: ${r.reason}`); }
+      const manual = rows.filter((r) => !['remove', 'prunable', 'keep-open'].includes(r.cls) || r === hereRow);
+      if (manual.length) { say('\nstill manual:'); for (const r of manual) say(`  ${pad(r.cls, 15)} ${r.branch || r.path}: ${r === hereRow ? 'skipped — this run started inside it; rerun --apply from the main checkout' : r.reason}`); }
       const openIssues = rows.filter((r) => (r.cls === 'remove') && r.issueState === 'OPEN');
       for (const r of openIssues) say(`  issue #${r.issue} is still OPEN after its PR finished — close it or record the blocker: gh issue close ${r.issue}`);
       if (failures.length) { say('\nFAILED steps:'); for (const f of failures) say('  ' + f); }
     } else {
       const would = rows.filter((r) => r.cls === 'remove' || r.cls === 'prunable');
       say(`\ndry run: ${would.length} worktree(s) would be removed with --apply${would.length ? ': ' + would.map((r) => r.branch).join(', ') : ''}. Nothing was changed.`);
+      if (would.some((r) => r.cls === 'remove')) {
+        say('  before --apply: close every Claude Code session and editor opened inside those worktrees. Windows cannot delete a');
+        say('  directory a running program sits in, and a session left in a removed worktree cannot run git at all.');
+      }
+      if (hereRow) say(`  this run started inside ${hereRow.path}: --apply from here skips it — run --apply from the main checkout (${mainRoot})`);
     }
   }
   process.exit(args.apply && failures.length ? 1 : 0);
