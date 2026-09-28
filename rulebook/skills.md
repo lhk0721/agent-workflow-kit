@@ -27,7 +27,7 @@ defect does not come back on the next screen or the next document.
 `ko-writing` carries a fourth path for the case that produces the worst prose: turning a
 pile of notes, tables and bullets into a document an outsider (an evaluator, another
 team, management) will read. The notes are not translated line by line; the skill
-re-plans the document in eight steps — fix the audience, build the term table first,
+re-plans the document in eight steps — fix the audience, write the glossary and fact ledgers as files first,
 extract claims, fix the paragraph shape (claim → evidence → decision), pair every number
 with a baseline or ceiling, give failures their own section in the same shape as the
 adopted work, read the headings and figure-caption names alone as a table of contents,
@@ -59,6 +59,59 @@ reports "Unknown skill" (verified 2026-09-22). The file scoping lives in
 `.claude/require-skill.json` instead, and the deterministic lever is
 `.claude/hooks/require-skill.mjs`, which denies any Write/Edit whose new text carries Hangul
 until the matching skill has been invoked in the session (see `context-maintenance.md`).
+
+### ko-writing: ledgers, section drafts and the cold-reader pass
+
+A 13,000-character model report written with the skill passed `check.py` almost clean,
+and a teammate still said it did not read. A review that saw only the manuscript found
+defects no sentence-level rule can see: numbers that disagreed between sections (inherited
+from the notes), one spelling with two meanings ("노트북" for a laptop GPU and for notebook
+computation), terms used sections before their definition, one component under five
+names, "이 채점자들" with no raters in sight, and figure-legend sentences wedged between a
+claim and its conclusion. The draft had been written in one pass, and the v0.1.14
+conversion procedure had been written from the model's own description of how it wrote
+("I kept a glossary in my head"), which the draft itself did not satisfy. The rules
+existed; nothing independent checked them. So the skill now separates writing from
+checking:
+
+- **Ledgers before prose.** Two files next to the manuscript, as fixed-column Markdown
+  tables (`references/ledgers.md`, templates in `assets/`): a glossary ledger
+  (`표기 | 뜻 | 쓰지 않을 말 | 정의 위치` — one spelling, one meaning; forbidden aliases;
+  the section that defines it) and a fact ledger (`대상 | 지표 | 값 | 표본 | 조건 | 재료 위치`
+  — every staged or ordinal entity and every number with its sample, condition and source
+  line). Filling the fact ledger surfaces contradictions in the notes; they are resolved or
+  asked about before writing, never smoothed over in prose.
+- **One section at a time.** A manuscript with more than three sections is drafted section
+  by section; the section is the batch of the existing batch rule.
+- **Cold-reader pass.** After each section and once over the whole document, a fresh
+  subagent that has seen neither the notes nor the ledgers gets only the manuscript path
+  and the prompt in `assets/cold-reader-prompt.md`. It returns a fixed list with line
+  numbers and quotes: where it got stuck, terms used before definition, names that drift
+  or collide, numbers or claims that contradict elsewhere, demonstratives with no
+  antecedent, sentences it had to re-read, and a three-sentence summary to compare with
+  the intended claims. The writer never runs this pass itself, and a re-run uses a new
+  subagent. Items are fixed (ledger first, then prose) or accepted with a reason.
+- **Re-check after rule-driven rewrites.** A tone switch, a caption or heading rule, or a
+  bulk term replacement sends the whole document back through `check.py` and the
+  cold-reader pass. In the report above, moving figure explanations out of captions into
+  the body without re-reading produced the wedged legend sentences.
+- **Document-level checks in `check.py`** (warnings, stdlib only, existing flags and
+  sections 1–8 unchanged): §9 "이/해당 + noun" whose noun is absent from the previous
+  three paragraphs (`--dem-window`), skipping quoted text, self-references and summary
+  nouns ("이 결과"); §10 figure-reading sentences ("그림에서", "파랑은", "점선은") in the
+  middle of a paragraph; §11 with `--glossary FILE`: a term first used before its
+  definition section, a term absent from that section, forbidden aliases (terms broken
+  across lines are matched); §12 with `--facts FILE`: a ledger entity followed within 25
+  characters by a same-precision number that is not its ledger value, one number attached
+  to two entities, one value given to two entities in the ledger, ledger values with
+  different samples in one paragraph (60 vs 400 essays), and decimals missing from the
+  ledger. Known false positives are listed in `references/ledgers.md` (difference values
+  after an entity name, integers of a different kind, aliases inside a definition
+  sentence). Tests: `scripts/check_test.py`.
+
+Skill changes, in this skill and in every kit skill, cite defects observed in real
+output. A procedure written from an agent's description of how it works is not evidence;
+the v0.1.14 procedure above is the example.
 
 ### Boundary between the two
 
