@@ -200,8 +200,9 @@ deadline. Every figure was accurate and most were redrawn anyway:
 
 - Decide whether a claim is true or whether a comparison is fair. For "did B beat A"
   use a pre-registered comparison (`experiment-gate`) before drawing the winner.
-- Write the caption prose. Korean captions follow `ko-writing` (§3: caption = figure
-  name + conclusion, labels inside the figure are noun phrases).
+- Write the caption prose. Korean captions follow `ko-writing` (§3: the caption is the
+  figure's name under the heading rules; the body states the conclusion; labels inside
+  the figure are noun phrases).
 - Build interactive dashboards. Hover, tooltips and categorical colour systems are a
   different medium; a general data-visualisation palette guide may apply there.
 
