@@ -1,4 +1,4 @@
-# agent-workflow-kit — report-figures. Grayscale style for figures in documents.
+# agent-workflow-kit — report-figures. Gray style for figures in documents; add one accent (#0072B2) for the claim yourself.
 # Use: plt.style.use(".claude/skills/report-figures/assets/grayscale.mplstyle")
 # Set font.family yourself: it depends on the document's script (Hangul needs a Hangul font).
 

@@ -1,6 +1,6 @@
 ---
 name: report-figures
-description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure (the caption carries them), grayscale data charts, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, and every figure rendered and looked at before it ships. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", and any figure destined for a document rather than an interactive dashboard.
+description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure (the caption carries them), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, and every figure rendered and looked at before it ships. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", and any figure destined for a document rather than an interactive dashboard.
 ---
 
 # Report figures
@@ -24,8 +24,12 @@ deadline. Every figure was accurate and most were redrawn anyway:
   duplicated the caption, fought the data for attention, and shrank to unreadable size
   once the figure was scaled to the page width.
 - **Saturated default colours read as machine-made.** Blue/orange/green categorical
-  palettes on every histogram made the document look generated. Grayscale with one dark
-  emphasis looked deliberate and printed cleanly.
+  palettes on every histogram made the document look generated; the panel titles already
+  named each series, so the hue added nothing.
+- **All-gray went too far.** The next draft painted everything gray, emphasis included,
+  and the emphasised bar no longer stood out. Published guidance never asks for pure
+  grayscale: it asks for gray everywhere except the one thing that matters, and for a
+  figure that still reads when printed in black and white (see Sources).
 - **Values on the horizontal axis were not intuitive.** Dot and dumbbell plots with the
   measured value running left to right had to be decoded. Vertical columns, where
   higher means more, were read at a glance.
@@ -55,11 +59,15 @@ deadline. Every figure was accurate and most were redrawn anyway:
    "where the model runs", one for "parts we trained", dashed outlines for failure
    paths. No perspective, no layer stacks, no floating callouts. A diagram carries no
    invented conclusion; its caption lists what it shows.
-5. **Data charts are grayscale.** Emphasis is one dark gray (about `#333333`); everything
-   else is mid or light gray (`#8c8c8c`, `#c9c9c9`); reference lines are dashed.
-   Background white. Distinguish series by lightness and by line style (solid, dashed,
-   dotted), never by hue alone. Use hue only when the categories are the point and gray
-   levels cannot carry them — and even then, one accent colour at most.
+5. **Data charts are gray with one accent.** The series that carries the claim gets one
+   colour-blind-safe accent (Okabe-Ito blue `#0072B2`); everything else is mid or light
+   gray (`#8c8c8c`, `#c9c9c9`); reference lines are dark gray and dashed; a highlighted
+   range may sit on a very light tint of the accent. Background white. A chart with no
+   single claim-carrying series stays all gray. A second accent (Okabe-Ito vermilion
+   `#D55E00`) is allowed only when three categories must be told apart; never red with
+   green, never a rainbow scale. The accent must stay darker than the grays so the
+   figure still reads printed in black and white, and lightness or line style (solid,
+   dashed) carries the distinction too, never hue alone.
 6. **Values go on the vertical axis.** Comparisons are vertical columns or lines, higher
    means more. Horizontal bars are for ranked lists whose category names are too long to
    sit under a column. Avoid horizontal dot and dumbbell plots in documents.
@@ -89,7 +97,7 @@ deadline. Every figure was accurate and most were redrawn anyway:
    | A changes over steps or time | line with markers, labelled end point |
    | Per-item difference between two methods | difference columns from zero |
    | Distribution | histogram in gray, overflow bin for the tail, counts on bars |
-   | Ranking with long names | horizontal bars, emphasis in dark gray |
+   | Ranking with long names | horizontal bars in gray, the claimed item in the accent |
    | Before/after for two or three things | slope chart, direct labels at both ends |
    | How the parts connect / what happens to one request | 2D box-and-arrow diagram |
 
@@ -100,8 +108,9 @@ deadline. Every figure was accurate and most were redrawn anyway:
    Mark a function that intentionally uses colour with a `figcheck: diagram` comment.
 4. **Run the checker.** `python <skills>/report-figures/scripts/figcheck.py <script.py>`
    flags sentence-like strings passed to titles, text, annotations, labels and legends;
-   non-gray colour literals outside `figcheck: diagram` functions; horizontal bars; and
-   bar charts with a nonzero axis start. Fix or justify each line.
+   colours that are neither gray, an Okabe-Ito accent nor a light background tint
+   outside `figcheck: diagram` functions; more than two accents in one chart; horizontal
+   bars; and bar charts with a nonzero axis start. Fix or justify each line.
 5. **Render and look.** Regenerate all figures and open each PNG (a contact sheet of
    all figures side by side helps catch inconsistencies). Fix layout by geometry, not
    by shrinking fonts below about 8 pt at final size.
@@ -122,5 +131,20 @@ deadline. Every figure was accurate and most were redrawn anyway:
 | File | Purpose |
 | --- | --- |
 | `assets/grayscale.mplstyle` | matplotlib style: white background, gray cycle (dark → light), light grid, no top/right spines, 200 dpi tight bounding box. No font family; set one for your script's language. |
-| `scripts/figcheck.py` | stdlib-only static check of a matplotlib script. Exit 1 on sentence text or non-gray colour; warnings for horizontal bars and truncated bar axes. |
+| `scripts/figcheck.py` | stdlib-only static check of a matplotlib script. Exit 1 on sentence text or a colour outside gray, Okabe-Ito accents and light tints; warnings for more than two accents, horizontal bars and truncated bar axes. |
 | `scripts/figcheck_test.py` | Tests for the checker: `python scripts/figcheck_test.py`. |
+
+## Sources
+
+- Rougier, Droettboom, Bourne. "Ten Simple Rules for Better Figures." PLOS Comput Biol
+  10(9): e1003833, 2014. Rule 4 (captions are not optional), rule 6 (colour for the
+  highlighted element, the rest gray or black), rule 8 (no chartjunk).
+- Wilke. *Fundamentals of Data Visualization*, §4.3 (colour as a tool to highlight) and
+  ch. 19 (qualitative scales work best with three to five categories; no colour for its
+  own sake).
+- ACL publication formatting guidelines: grayscale readability strongly encouraged;
+  colour allowed but critical distinctions must not rely on colour alone.
+- Wong. "Points of view: Color blindness." Nature Methods 8: 441, 2011; Okabe and Ito,
+  Color Universal Design, 2008: the accent palette.
+- Crameri, Shephard, Heron. "The misuse of colour in science communication." Nat Commun
+  11: 5444, 2020: rainbow and red–green maps distort data and exclude readers.

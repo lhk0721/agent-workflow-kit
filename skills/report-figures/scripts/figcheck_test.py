@@ -54,6 +54,26 @@ class GrayTest(unittest.TestCase):
             self.assertFalse(is_gray(c), c)
 
 
+class AccentTest(unittest.TestCase):
+    def test_one_accent_and_tint_pass(self):
+        c = check('''
+            ACCENT = "#0072B2"
+            def fig(ax):
+                ax.axvspan(24, 48, color="#e5f0f8")
+                ax.bar([1, 2], [3, 4], color=[ACCENT, "#c9c9c9"])
+        ''')
+        self.assertEqual(c.fails, [])
+        self.assertEqual(c.warns, [])
+
+    def test_three_accents_warn(self):
+        c = check('''
+            def fig(ax):
+                ax.bar([1, 2, 3], [3, 4, 5], color=["#0072B2", "#D55E00", "#009E73"])
+        ''')
+        self.assertEqual(c.fails, [])
+        self.assertEqual([m.split(" ")[1] for _, m in c.warns], ["accent"])
+
+
 class ScriptTest(unittest.TestCase):
     def test_title_sentence_and_constant_colour(self):
         c = check('''

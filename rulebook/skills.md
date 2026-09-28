@@ -183,11 +183,12 @@ make. None of them commits — the pre-commit review gate stays with the user.
 ### report-figures
 
 - Purpose: figures for documents read on paper or as a PDF — one claim per figure, no
-  explanatory sentences inside it, grayscale data charts, values on the vertical axis,
+  explanatory sentences inside it, gray data charts with one colour-blind-safe accent,
+  values on the vertical axis,
   structure as flat 2D box-and-arrow diagrams. Comes from a model write-up whose
   teammates found 3D architecture renders confusing, in-figure sentences noisy,
   saturated palettes machine-looking, horizontal dot plots hard to read and a long
-  latency tail invisible.
+  latency tail invisible — and then found an all-gray draft hid its own emphasis.
 - Triggers: "그림 만들어", "도식 그려", "구조도", "그래프 단순하게", "그림 안 글씨 빼",
   "grayscale로", "AI 티 나", "make the figures", "architecture diagram",
   "simplify the chart".
@@ -197,9 +198,10 @@ make. None of them commits — the pre-commit review gate stays with the user.
   `assets/grayscale.mplstyle` → `scripts/figcheck.py` → every PNG rendered and opened →
   whatever left the figure (axis start, line and colour meaning) written into the caption.
 - `scripts/figcheck.py` (stdlib Python, static): fails on sentence-like strings in
-  titles, text, annotations, axis and tick labels, legend labels, and on non-gray colour
-  literals outside functions marked `figcheck: diagram` (module constants and dict
-  literals are resolved); warns on horizontal bars and on bars whose length axis starts
+  titles, text, annotations, axis and tick labels, legend labels, and on colours that are
+  neither gray, an Okabe-Ito accent nor a light tint, outside functions marked
+  `figcheck: diagram` (module constants and dict literals are resolved); warns on more
+  than two accents in one chart, on horizontal bars and on bars whose length axis starts
   above zero. Tests: `scripts/figcheck_test.py`.
 - Does not: judge whether the plotted comparison is fair (`experiment-gate`); write the
   caption prose (`ko-writing` §3); check layout — the rendered image is looked at.

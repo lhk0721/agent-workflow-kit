@@ -10,10 +10,13 @@ FAIL (exit 1)
     label, legend title or a `label=` keyword: ends like a sentence (다/요/니다, or a
     period after three or more words), runs past eight words, or carries a
     parenthetical explanation (a parenthesis with a space inside, 15+ characters)
-  - a non-gray colour literal in a colour keyword, outside a function whose source
+  - a colour literal in a colour keyword that is neither gray, a colour-blind-safe
+    Okabe-Ito accent, nor a very light background tint, outside a function whose source
     contains the marker `figcheck: diagram`. Module-level string constants and dict
     literals are resolved, so `color=BLUE` is checked against `BLUE = "#2a78d6"`.
 WARN
+  - more than two accent colours in one chart: one accent, a second only when three
+    categories must be told apart
   - horizontal bars (`barh`): keep them for ranked lists with long category names
   - a bar or histogram drawn in a function that starts its length axis above zero
 
@@ -49,6 +52,11 @@ GRAY_NAMES = {
 MARKER = "figcheck: diagram"
 MAX_WORDS = 8
 MAX_CHANNEL_SPREAD = 16  # a warm or cool gray like #c3c2b7 still counts as gray
+# Okabe & Ito (2008) / Wong, Nature Methods 8:441 (2011): distinguishable with colour-vision
+# deficiency. Charts keep everything gray and give the claim one of these.
+ACCENTS = {"#e69f00", "#56b4e9", "#009e73", "#f0e442", "#0072b2", "#d55e00", "#cc79a7"}
+MAX_ACCENTS = 2
+TINT_FLOOR = 0xE0  # every channel at or above this: a background band, not a series
 
 
 def text_of(node: ast.AST) -> str | None:
@@ -84,6 +92,16 @@ def sentence_problem(text: str) -> str | None:
     return None
 
 
+def rgb(color: str) -> tuple[int, int, int] | None:
+    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", color.strip())
+    if not m:
+        return None
+    h = m.group(1)
+    if len(h) == 3:
+        h = "".join(ch * 2 for ch in h)
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
 def is_gray(color: str) -> bool:
     c = color.strip()
     if c.lower() in GRAY_NAMES or c in GRAY_NAMES:
@@ -93,14 +111,18 @@ def is_gray(color: str) -> bool:
         return True
     except ValueError:
         pass
-    m = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", c)
-    if not m:
-        return False
-    h = m.group(1)
-    if len(h) == 3:
-        h = "".join(ch * 2 for ch in h)
-    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
-    return max(r, g, b) - min(r, g, b) <= MAX_CHANNEL_SPREAD
+    v = rgb(c)
+    return v is not None and max(v) - min(v) <= MAX_CHANNEL_SPREAD
+
+
+def is_accent(color: str) -> bool:
+    v = rgb(color)
+    return v is not None and "#%02x%02x%02x" % v in ACCENTS
+
+
+def is_tint(color: str) -> bool:
+    v = rgb(color)
+    return v is not None and min(v) >= TINT_FLOOR
 
 
 def call_name(node: ast.Call) -> str:
@@ -170,6 +192,7 @@ class Checker:
 
     def run(self) -> None:
         for scope, diagram in self.scopes():
+            accents: set[str] = set()
             bar_axes: set[str] = set()
             limits: list[ast.Call] = []
             for node in ast.walk(scope):
@@ -184,14 +207,20 @@ class Checker:
                         self.check_text(kw.value, f"{name}({kw.arg}=)")
                     if kw.arg in COLOR_KW and not diagram:
                         for c in self.strings_in(kw.value):
-                            if not is_gray(c):
-                                self.fails.append((node.lineno, f"non-gray colour {c!r} in {name}({kw.arg}=) — use gray, or mark a diagram function with '{MARKER}'"))
+                            if is_gray(c) or is_tint(c):
+                                continue
+                            if is_accent(c):
+                                accents.add(c.lower())
+                                continue
+                            self.fails.append((node.lineno, f"non-gray colour {c!r} in {name}({kw.arg}=) — use gray plus one Okabe-Ito accent (e.g. #0072B2), or mark a diagram function with '{MARKER}'"))
                 if name == "barh":
                     self.warns.append((node.lineno, "horizontal bars — keep only for a ranked list with long category names; otherwise use vertical columns"))
                 if name in BAR_CALLS:
                     bar_axes.add(BAR_CALLS[name])
                 if name in LIMIT_CALLS:
                     limits.append(node)
+            if len(accents) > MAX_ACCENTS and isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                self.warns.append((scope.lineno, f"{len(accents)} accent colours in one chart — keep one accent, a second only for a third category"))
             for node in limits:
                 if LIMIT_CALLS[call_name(node)] in bar_axes:
                     lo = node.args[0] if node.args else None
