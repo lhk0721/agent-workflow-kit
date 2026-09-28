@@ -76,6 +76,33 @@ def split_caption(line: str) -> tuple[str, str] | None:
     return m.group(1).strip(), m.group(2).strip()
 
 
+def figure_from_block(block: list[str], bases: list[Path], line: int) -> dict | None:
+    """One blockquote (lines without the leading ">") -> a figure, or None if it names no
+    image or has no caption line. manuscript_sheet.py reads blocks through this too."""
+    image, label, caption, claim, notes = None, None, None, None, None
+    for ln in block:
+        m = CLAIM_RE.match(ln)
+        if m:
+            claim = m.group(1).strip()
+            continue
+        m = NOTES_RE.match(ln)
+        if m:
+            notes = m.group(1).strip()
+            continue
+        if image is None:
+            m = TICK_PATH_RE.search(ln) or MD_IMAGE_RE.search(ln)
+            if m:
+                image = m.group(1) if m.re is TICK_PATH_RE else m.group(2)
+        if caption is None:
+            cap = split_caption(ln)
+            if cap:
+                label, caption = cap
+    if image and caption is not None:
+        return {"file": str(resolve(image, bases)), "label": label, "caption": caption,
+                "claim": claim, "notes": notes, "line": line}
+    return None
+
+
 def from_markdown(path: Path) -> list[dict]:
     lines = path.read_text(encoding="utf-8").splitlines()
     bases = [path.parent, Path.cwd()]
@@ -85,27 +112,9 @@ def from_markdown(path: Path) -> list[dict]:
     def flush() -> None:
         if not block:
             return
-        image, label, caption, claim, notes = None, None, None, None, None
-        for ln in block:
-            m = CLAIM_RE.match(ln)
-            if m:
-                claim = m.group(1).strip()
-                continue
-            m = NOTES_RE.match(ln)
-            if m:
-                notes = m.group(1).strip()
-                continue
-            if image is None:
-                m = TICK_PATH_RE.search(ln) or MD_IMAGE_RE.search(ln)
-                if m:
-                    image = m.group(1) if m.re is TICK_PATH_RE else m.group(2)
-            if caption is None:
-                cap = split_caption(ln)
-                if cap:
-                    label, caption = cap
-        if image and caption is not None:
-            figs.append({"file": str(resolve(image, bases)), "label": label, "caption": caption,
-                         "claim": claim, "notes": notes, "line": start})
+        fig = figure_from_block(block, bases, start)
+        if fig:
+            figs.append(fig)
         block.clear()
 
     start = 0
