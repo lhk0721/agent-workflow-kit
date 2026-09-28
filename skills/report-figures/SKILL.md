@@ -91,7 +91,8 @@ deadline. Every figure was accurate and most were redrawn anyway:
     boxes, legends over data, overflow. The checker below catches text and colour, not
     layout.
 11. **Tables are figures too.** A table that goes into the document is drawn by the same
-    script as an image, read from the table in the manuscript so the two never drift:
+    script as an image, read from its Markdown source (the manuscript, or a tables file
+    the manuscript's table blocks point to) so the two never drift:
     no vertical rules, a heavy rule above and below, a thin rule under the header,
     numbers right-aligned with their header. Measure text with the real font instead of
     estimating widths from character counts; estimates either overlap or leave gaps.
