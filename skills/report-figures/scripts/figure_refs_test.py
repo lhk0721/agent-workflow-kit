@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from figure_refs import caption_problem, check  # noqa: E402
+from figure_refs import caption_problem, check, numbers  # noqa: E402
 
 
 class RefsTest(unittest.TestCase):
@@ -26,6 +26,9 @@ class RefsTest(unittest.TestCase):
         self.assertIsNone(caption_problem("band head."))
         self.assertEqual(caption_problem("정답 분포. 소수점이 붙는다."), "두 문장 이상이다")
         self.assertEqual(caption_problem("예측은 가운데로 몰립니다."), "문장으로 끝난다")
+
+    def test_numbers(self):
+        self.assertEqual(numbers("Gemma 4, 주황은 9,599편과 0.4829, 2,000회"), {"9,599", "0.4829", "2,000"})
 
     def test_good_manuscript_passes(self):
         fails, warns = self.run_check("""

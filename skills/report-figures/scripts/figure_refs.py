@@ -40,7 +40,8 @@ from figure_sheet import from_markdown  # noqa: E402
 
 DEFAULT_STOP = r"^#+ .*(그림 목록|Figure list|List of figures)"
 SENTENCE_END = re.compile(r"(다|요|니다|습니다)\.?$")
-NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+# 천 단위 쉼표는 숫자 셋이 따라올 때만 숫자로 본다. "Gemma 4, 주황"의 쉼표는 문장 부호다.
+NUMBER = re.compile(r"\d+(?:,\d{3})*(?:\.\d+)?")
 
 
 def body_lines(lines: list[str], stop: str) -> list[tuple[int, str]]:
