@@ -27,15 +27,19 @@ defect does not come back on the next screen or the next document.
 `ko-writing` carries a fourth path for the case that produces the worst prose: turning a
 pile of notes, tables and bullets into a document an outsider (an evaluator, another
 team, management) will read. The notes are not translated line by line; the skill
-re-plans the document in seven steps — fix the audience, build the term table first,
+re-plans the document in eight steps — fix the audience, build the term table first,
 extract claims, fix the paragraph shape (claim → evidence → decision), pair every number
 with a baseline or ceiling, give failures their own section in the same shape as the
-adopted work, then run the mechanical check. Section "재료를 줄글로 옮길 때" in
+adopted work, read the headings and figure-caption names alone as a table of contents,
+then run the mechanical check. Headings come from the list of topics, not the list of
+claims. Section "재료를 줄글로 옮길 때" in
 `SKILL.md` states the procedure. `references/rules.md` opens with the ten principles the
 rest derives from — the cold reader (knows the field, not the project) as the default
 audience, standard terms over metaphors, one definition at first use, numbers with a
-baseline, no internal identifiers as evidence, quantities before the noun, noun-phrase
-headings. Each principle is tied to a criterion of the National Institute of Korean
+baseline, no internal identifiers as evidence, quantities before the noun, headings that
+name the topic. A claim squeezed into a relative clause ("약한 영역이 아닌 X", "원인이 된
+설정값") passes a sentence-heading check but reads as rhetoric; an evaluator flagged exactly
+that in a report draft, so the rules now forbid it and name the four shapes it takes. Each principle is tied to a criterion of the National Institute of Korean
 Language's argumentative-writing rubric (rules.md §0-1 holds the mapping), so the rules
 have an official public source, not only house style; a report that goes to Korean
 evaluators uses that table as its checklist.
@@ -44,8 +48,8 @@ Two files support that path:
 
 | File | Purpose |
 | --- | --- |
-| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit or shaped as sentences, bold overuse, quantities placed after the noun. `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
-| `references/style-conversion.md` | Rule table for switching a finished draft between 해라체 (`~한다`) and 하십시오체 (`~합니다`), with the exceptions that need a hand and the rule that headings stay noun phrases in either tone. |
+| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit or shaped as sentences, bold overuse, quantities placed after the noun, and — as warnings for a human to judge — headings and figure-caption names that hide a claim (relative clause, ending in 것/법, "~아닌" contrast, rhetorical words, a large number at the end). `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
+| `references/style-conversion.md` | Rule table for switching a finished draft between 해라체 (`~한다`) and 하십시오체 (`~합니다`), with the exceptions that need a hand and the rule that a heading names its topic in either tone (a sentence heading's claim moves to the first sentence of the body). |
 
 Run the check from the repo root: `python .claude/skills/ko-writing/scripts/check.py <file.md>`.
 
