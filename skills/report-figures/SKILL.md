@@ -1,6 +1,6 @@
 ---
 name: report-figures
-description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure (the caption carries them), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, and every figure rendered and looked at before it ships. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", and any figure destined for a document rather than an interactive dashboard.
+description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure (the caption carries them), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, every figure rendered and looked at before it ships, tables drawn as images like figures, and one figure sheet per document whose buttons copy each image, its path and its caption. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", "표도 이미지로", "그림 모아 보기", "캡션 복사", "figure sheet", "copy the caption", and any figure destined for a document rather than an interactive dashboard.
 ---
 
 # Report figures
@@ -83,6 +83,16 @@ deadline. Every figure was accurate and most were redrawn anyway:
     change, render and open the image: label collisions, text spilling out of diagram
     boxes, legends over data, overflow. The checker below catches text and colour, not
     layout.
+11. **Tables are figures too.** A table that goes into the document is drawn by the same
+    script as an image, read from the table in the manuscript so the two never drift:
+    no vertical rules, a heavy rule above and below, a thin rule under the header,
+    numbers right-aligned with their header. Measure text with the real font instead of
+    estimating widths from character counts; estimates either overlap or leave gaps.
+    Its caption sits in the manuscript like a figure's, as `Table n.` / `표 n.`.
+12. **Hand the writer one page per document.** Build a figure sheet: every figure and
+    table of the document on one page, each with buttons to copy the image, copy its
+    absolute path and copy the caption. The writer pasting into a word processor should
+    never hunt for files or retype captions.
 
 ## Procedure
 
@@ -116,6 +126,15 @@ deadline. Every figure was accurate and most were redrawn anyway:
    by shrinking fonts below about 8 pt at final size.
 6. **Update the captions** with everything rule 2 moved out of the figures, and
    regenerate the document's figure list if it has one.
+7. **Build the figure sheet.**
+   `python <skills>/report-figures/scripts/figure_sheet.py --markdown <manuscript.md>`
+   reads every blockquote block that names an image and carries a `그림 n.` / `표 n.` /
+   `Figure n.` / `Table n.` caption line, in document order, and writes one
+   self-contained HTML page (images embedded) next to the figures. `--manifest` takes a
+   JSON list instead. It is HTML, not PDF, on purpose: a PDF viewer cannot put an image
+   on the clipboard. The caption button drops the `그림 n.` number by default because
+   word processors number captions themselves (`--keep-number` keeps it). Open it in a
+   browser; it works from `file://`. Do not commit it: it duplicates every image.
 
 ## What this skill does not do
 
@@ -133,6 +152,8 @@ deadline. Every figure was accurate and most were redrawn anyway:
 | `assets/grayscale.mplstyle` | matplotlib style: white background, gray cycle (dark → light), light grid, no top/right spines, 200 dpi tight bounding box. No font family; set one for your script's language. |
 | `scripts/figcheck.py` | stdlib-only static check of a matplotlib script. Exit 1 on sentence text or a colour outside gray, Okabe-Ito accents and light tints; warnings for more than two accents, horizontal bars and truncated bar axes. |
 | `scripts/figcheck_test.py` | Tests for the checker: `python scripts/figcheck_test.py`. |
+| `scripts/figure_sheet.py` | stdlib-only builder of the one-page figure sheet: every figure and table with copy-image, copy-path and copy-caption buttons. Exit 1 on a missing file or no figure found. |
+| `scripts/figure_sheet_test.py` | Tests for the sheet builder: `python scripts/figure_sheet_test.py`. |
 
 ## Sources
 

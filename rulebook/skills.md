@@ -203,6 +203,12 @@ make. None of them commits — the pre-commit review gate stays with the user.
   `figcheck: diagram` (module constants and dict literals are resolved); warns on more
   than two accents in one chart, on horizontal bars and on bars whose length axis starts
   above zero. Tests: `scripts/figcheck_test.py`.
+- Tables that go into the document are drawn as images by the same script, read from the
+  manuscript's Markdown tables (no vertical rules, text measured with the real font).
+- `scripts/figure_sheet.py` (stdlib Python): one self-contained HTML page per document
+  with every figure and table in manuscript order and buttons that copy the image, its
+  absolute path and its caption (number dropped by default). HTML because a PDF viewer
+  cannot put an image on the clipboard. Tests: `scripts/figure_sheet_test.py`.
 - Does not: judge whether the plotted comparison is fair (`experiment-gate`); write the
   caption prose (`ko-writing` §3); check layout — the rendered image is looked at.
 - Reads: no kit config; the script path is the argument.
