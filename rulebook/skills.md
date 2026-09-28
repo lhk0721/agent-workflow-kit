@@ -196,7 +196,7 @@ make. None of them commits — the pre-commit review gate stays with the user.
   form picked from the job (columns, difference columns, overflow-binned histogram,
   slope chart, box-and-arrow diagram) → drawn in the repo's one plotting script with
   `assets/grayscale.mplstyle` → `scripts/figcheck.py` → every PNG rendered and opened →
-  whatever left the figure (axis start, line and colour meaning) written into the caption.
+  whatever left the figure (axis start, line and colour meaning) written into the block's in-text line and the body; the caption stays a name.
 - `scripts/figcheck.py` (stdlib Python, static): fails on sentence-like strings in
   titles, text, annotations, axis and tick labels, legend labels, and on colours that are
   neither gray, an Okabe-Ito accent nor a light tint, outside functions marked
@@ -211,6 +211,10 @@ make. None of them commits — the pre-commit review gate stays with the user.
   with every figure and table in manuscript order and buttons that copy the image, its
   absolute path and its caption (number dropped by default). HTML because a PDF viewer
   cannot put an image on the clipboard. Tests: `scripts/figure_sheet_test.py`.
+- Captions are names only; each figure block carries a claim line and an in-text line
+  for whoever writes the body. `scripts/figure_refs.py` checks that the body mentions
+  every figure and repeats its numbers; the cold-read test gives a fresh agent only the
+  images and compares its reading with the claims. Tests: `scripts/figure_refs_test.py`.
 - Does not: judge whether the plotted comparison is fair (`experiment-gate`); write the
   caption prose (`ko-writing` §3); check layout — the rendered image is looked at.
 - Reads: no kit config; the script path is the argument.

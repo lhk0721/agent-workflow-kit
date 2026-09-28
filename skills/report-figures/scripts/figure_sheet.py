@@ -44,15 +44,18 @@ MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".svg": "image/svg+xml", ".gif": "image/gif", ".webp": "image/webp"}
 CAPTION_RE = re.compile(r"^(?:\*\*)?((?:그림|표|Figure|Fig\.|Table)\s*[\w-]+)[.:](?:\*\*)?\s*(.*)$")
 TICK_PATH_RE = re.compile(r"`([^`]+\.(?:png|jpe?g|svg|gif|webp))`", re.I)
+# 작업용 줄: 캡션에 넣지 않는 요점과, 본문이 받아 써야 할 읽는 법. 문서에는 붙지 않는다.
+CLAIM_RE = re.compile(r"^(?:요점|Claim)\s*:\s*(.*)$")
+NOTES_RE = re.compile(r"^(?:본문에 쓸 것|In text)\s*:\s*(.*)$")
 MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+\.(?:png|jpe?g|svg|gif|webp))\)", re.I)
 
 STRINGS = {
     "ko": {"image": "이미지 복사", "path": "경로 복사", "caption": "캡션 복사",
            "done": "복사 완료", "failed": "복사 실패", "count": "그림 {n}장",
-           "source": "원고", "made": "만든 때"},
+           "source": "원고", "made": "만든 때", "claim": "요점", "notes": "본문에 쓸 것"},
     "en": {"image": "Copy image", "path": "Copy path", "caption": "Copy caption",
            "done": "Copied", "failed": "Copy failed", "count": "{n} figures",
-           "source": "Source", "made": "Built"},
+           "source": "Source", "made": "Built", "claim": "Claim", "notes": "In text"},
 }
 
 
@@ -82,8 +85,16 @@ def from_markdown(path: Path) -> list[dict]:
     def flush() -> None:
         if not block:
             return
-        image, label, caption = None, None, None
+        image, label, caption, claim, notes = None, None, None, None, None
         for ln in block:
+            m = CLAIM_RE.match(ln)
+            if m:
+                claim = m.group(1).strip()
+                continue
+            m = NOTES_RE.match(ln)
+            if m:
+                notes = m.group(1).strip()
+                continue
             if image is None:
                 m = TICK_PATH_RE.search(ln) or MD_IMAGE_RE.search(ln)
                 if m:
@@ -93,17 +104,22 @@ def from_markdown(path: Path) -> list[dict]:
                 if cap:
                     label, caption = cap
         if image and caption is not None:
-            figs.append({"file": str(resolve(image, bases)), "label": label, "caption": caption})
+            figs.append({"file": str(resolve(image, bases)), "label": label, "caption": caption,
+                         "claim": claim, "notes": notes, "line": start})
         block.clear()
 
-    for ln in lines:
+    start = 0
+    for n, ln in enumerate(lines, 1):
         if ln.startswith(">"):
+            if not block:
+                start = n
             block.append(ln[1:].strip())
             continue
         flush()
         m = MD_IMAGE_RE.search(ln)
         if m:
-            figs.append({"file": str(resolve(m.group(2), bases)), "label": None, "caption": m.group(1).strip()})
+            figs.append({"file": str(resolve(m.group(2), bases)), "label": None, "caption": m.group(1).strip(),
+                         "claim": None, "notes": None, "line": n})
     flush()
     return figs
 
@@ -129,11 +145,14 @@ def build(figs: list[dict], title: str, source: str, lang: str, keep_number: boo
         src = f"data:{MIME[p.suffix.lower()]};base64,{data}"
         label = fig.get("label") or f"#{i}"
         copy_caption = caption_to_copy(fig, keep_number)
+        notes_html = "".join(
+            f'\n  <p class="note"><b>{t[key]}</b> {html.escape(fig[key])}</p>'
+            for key in ("claim", "notes") if fig.get(key))
         cards.append(f"""
 <section class="fig" id="fig-{i}">
   <header><span class="label">{html.escape(label)}</span><span class="name">{html.escape(p.name)}</span></header>
   <img src="{src}" alt="{html.escape(fig['caption'])}">
-  <p class="caption">{html.escape(fig['caption'])}</p>
+  <p class="caption">{html.escape(fig['caption'])}</p>{notes_html}
   <p class="path">{html.escape(str(p))}</p>
   <div class="actions">
     <button data-kind="image">{t['image']}</button>
@@ -162,6 +181,8 @@ def build(figs: list[dict], title: str, source: str, lang: str, keep_number: boo
   .name {{ color: var(--ink2); font-size: 13px; font-family: ui-monospace, Consolas, monospace; }}
   .fig img {{ display: block; max-width: 100%; height: auto; margin: 0 auto; }}
   .caption {{ margin: 12px 0 4px; line-height: 1.6; }}
+  .note {{ margin: 0 0 4px; color: var(--ink2); font-size: 13px; line-height: 1.5; }}
+  .note b {{ font-weight: 600; margin-right: 4px; }}
   .path {{ margin: 0 0 12px; color: var(--ink2); font-size: 12px; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }}
   .actions {{ display: flex; flex-wrap: wrap; gap: 8px; }}
   button {{ font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 6px; cursor: pointer;
@@ -169,7 +190,7 @@ def build(figs: list[dict], title: str, source: str, lang: str, keep_number: boo
   button:hover {{ border-color: var(--accent); }}
   button.done {{ border-color: var(--accent); color: var(--accent); }}
   button.failed {{ border-color: #D55E00; color: #D55E00; }}
-  @media print {{ body {{ background: #fff; }} .actions, .path {{ display: none; }} .fig {{ break-inside: avoid; border: none; }} }}
+  @media print {{ body {{ background: #fff; }} .actions, .path, .note {{ display: none; }} .fig {{ break-inside: avoid; border: none; }} }}
 </style>
 </head>
 <body>
@@ -226,6 +247,9 @@ document.addEventListener("click", async e => {{
 
 
 def main(argv: list[str]) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # Windows 콘솔(cp949)에서 한글 경고가 깨지지 않게
+        sys.stderr.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--markdown", type=Path)

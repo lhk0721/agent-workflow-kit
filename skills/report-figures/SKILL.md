@@ -1,6 +1,6 @@
 ---
 name: report-figures
-description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure (the caption carries them), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, every figure rendered and looked at before it ships, tables drawn as images like figures, and one figure sheet per document whose buttons copy each image, its path and its caption. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", "표도 이미지로", "그림 모아 보기", "캡션 복사", "figure sheet", "copy the caption", and any figure destined for a document rather than an interactive dashboard.
+description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure and a caption that is only the figure's name (the body text explains it, from a claim line and an in-text line kept next to each figure), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, every figure rendered and looked at before it ships, tables drawn as images like figures, and one figure sheet per document whose buttons copy each image, its path and its caption. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", "표도 이미지로", "그림 모아 보기", "캡션 복사", "figure sheet", "copy the caption", "캡션 줄여", "본문이 그림을 설명", "그림이 글을 설명하는지", and any figure destined for a document rather than an interactive dashboard.
 ---
 
 # Report figures
@@ -45,11 +45,18 @@ deadline. Every figure was accurate and most were redrawn anyway:
    reference line ("baseline 0.13"). Not allowed: sentence titles, suptitles,
    annotation sentences, footnotes, parenthetical legends. Panel titles are labels
    (a domain name, a metric name), never claims. The sentence that says what to look at
-   is the caption's job, and the caption lives in the document.
-2. **Whatever leaves the figure moves to the caption.** A truncated axis start, what a
-   dashed line means, which bar is emphasised and why — write it into the caption in
-   the same commit. A figure is now "labels only", so an unexplained encoding is a bug.
-3. **One claim per figure.** Before drawing, write the caption's conclusion sentence.
+   belongs to the body text.
+2. **The caption is the figure's name; the body explains it.** `그림 3. 두 번째 모델의
+   실수 예측 대 정답.` and nothing more: no conclusion, no reading instructions. Next to
+   the caption, the manuscript's figure block carries two working lines that are never
+   pasted into the document:
+   `요점:` / `Claim:` — the one sentence the figure shows; and
+   `본문에 쓸 것:` / `In text:` — everything a reader needs that the figure does not say
+   (a truncated axis start, what a colour or dashed line means, what was compared, how a
+   value was measured). The body paragraph that mentions the figure states the claim and
+   carries the reading notes, numbers included. Whatever leaves the figure goes there in
+   the same commit; an encoding nobody explains is a bug.
+3. **One claim per figure.** Before drawing, write the claim line.
    If the figure needs two conclusion sentences, drop the secondary curve or panel, or
    split it into two figures. Secondary information usually belongs in a table or the
    text.
@@ -58,7 +65,7 @@ deadline. Every figure was accurate and most were redrawn anyway:
    meaning per colour across every diagram in the document, for example one fill for
    "where the model runs", one for "parts we trained", dashed outlines for failure
    paths. No perspective, no layer stacks, no floating callouts. A diagram carries no
-   invented conclusion; its caption lists what it shows.
+   invented conclusion; its claim line says what it lets the reader follow.
 5. **Data charts are gray with one accent.** The series that carries the claim gets one
    colour-blind-safe accent (Okabe-Ito blue `#0072B2`); everything else is mid or light
    gray (`#8c8c8c`, `#c9c9c9`); reference lines are dark gray and dashed; a highlighted
@@ -74,7 +81,7 @@ deadline. Every figure was accurate and most were redrawn anyway:
 7. **Show a difference as a difference.** When the point is "A beats B by this much per
    item", plot the difference from zero as columns instead of two dots per row.
 8. **Bars start at zero.** If the axis must be truncated to show a small change, bars
-   lie about ratios; use points and lines and state the axis start in the caption.
+   lie about ratios; use points and lines and state the axis start in the body text (the in-text line).
 9. **Keep small marks visible.** A long tail or a handful of rare values goes into an
    overflow bin ("> 100 s") with a count label on every bar. A mark the reader cannot
    see at page width is not in the figure.
@@ -101,9 +108,15 @@ deadline. Every figure was accurate and most were redrawn anyway:
 
 ## Procedure
 
-1. **Caption first.** For each figure write `Figure n. <what is drawn>. <conclusion>.`
-   in the document. If you cannot write the conclusion in one sentence, the figure is
-   not ready to draw (rule 3). Structure diagrams have no conclusion (rule 4).
+1. **Block first.** For each figure write its block in the manuscript: the image path,
+   `Figure n. <name>.`, the claim line and the in-text line (rule 2). If the claim does
+   not fit one sentence, the figure is not ready to draw (rule 3). A structure diagram's
+   claim names what it lets the reader follow, not an invented finding (rule 4).
+   - **Text first:** read each section's claims; one about a comparison, a trend, a
+     distribution or how parts connect gets a figure block, and that sentence becomes
+     its claim. A claim a single number carries needs no figure.
+   - **Figure first:** the claim and in-text lines are the brief for whoever writes the
+     body; hand them over rather than writing a long caption.
 2. **Pick the form from the job.**
 
    | Job | Form |
@@ -129,8 +142,16 @@ deadline. Every figure was accurate and most were redrawn anyway:
 5. **Render and look.** Regenerate all figures and open each PNG (a contact sheet of
    all figures side by side helps catch inconsistencies). Fix layout by geometry, not
    by shrinking fonts below about 8 pt at final size.
-6. **Update the captions** with everything rule 2 moved out of the figures, and
-   regenerate the document's figure list if it has one.
+6. **Tie text and figures together.**
+   `python <skills>/report-figures/scripts/figure_refs.py <manuscript.md>` fails when a
+   caption is more than a name, a block has no claim, or the body never mentions
+   `그림 n` / `표 n` / `Figure n` / `Table n`; it warns when the first mention comes after
+   the figure and when a number in the claim or in-text line is missing from the body. A
+   figure list at the end does not count as a mention (`--stop` sets that heading).
+   Then run the **cold-read test**: give a fresh agent with no project context only the
+   PNGs and ask, per image, for the one-sentence point and for anything it could not
+   tell without explanation. Where its point differs from the claim, fix the figure;
+   what it could not tell goes into the in-text line. Regenerate the figure list.
 7. **Build the figure sheet.**
    `python <skills>/report-figures/scripts/figure_sheet.py --markdown <manuscript.md>`
    reads every blockquote block that names an image and carries a `그림 n.` / `표 n.` /
@@ -159,6 +180,8 @@ deadline. Every figure was accurate and most were redrawn anyway:
 | `scripts/figcheck_test.py` | Tests for the checker: `python scripts/figcheck_test.py`. |
 | `scripts/figure_sheet.py` | stdlib-only builder of the one-page figure sheet: every figure and table with copy-image, copy-path and copy-caption buttons. Exit 1 on a missing file or no figure found. |
 | `scripts/figure_sheet_test.py` | Tests for the sheet builder: `python scripts/figure_sheet_test.py`. |
+| `scripts/figure_refs.py` | stdlib-only check that captions are names, every block has a claim, and the body mentions every figure and repeats its numbers. |
+| `scripts/figure_refs_test.py` | Tests for the reference check: `python scripts/figure_refs_test.py`. |
 
 ## Sources
 
