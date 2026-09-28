@@ -1,6 +1,6 @@
 ---
 name: report-figures
-description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure and a caption that is only the figure's name (the body text explains it, from a claim line and an in-text line kept next to each figure), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, every figure rendered and looked at before it ships, tables drawn as images like figures, and one figure sheet per document whose buttons copy each image, its path and its caption. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", "표도 이미지로", "그림 모아 보기", "캡션 복사", "figure sheet", "copy the caption", "캡션 줄여", "본문이 그림을 설명", "그림이 글을 설명하는지", and any figure destined for a document rather than an interactive dashboard.
+description: Makes figures for documents people read on paper or in a PDF — reports, papers, model write-ups, slides exported to PDF — from one reproducible plotting script. One claim per figure, no explanatory sentences inside the figure and a caption that is only the figure's name (the body text explains it, from a claim line and an in-text line kept next to each figure), gray data charts with one colour-blind-safe accent for the claim, values on the vertical axis, structure drawn as flat 2D box-and-arrow diagrams instead of 3D renders, every figure rendered and looked at before it ships, tables drawn as images like figures, one figure sheet per document whose buttons copy each image, its path and its caption, and a manuscript page where clicking a heading, paragraph, section bracket, table or figure copies it, or in select mode copies a selector down to a single bar, point or label of a figure. Use it whenever a chart, plot, histogram or architecture/flow diagram is about to go into a report or document, and whenever someone says the figures are confusing, cluttered, look AI-made, or need simplifying. Triggers include "그림 만들어", "figure 그려", "기술서 그림", "도식 그려", "구조도", "흐름도", "그래프 단순하게", "그림 안 글씨 빼", "grayscale로", "AI 티 나", "그림이 안 읽혀", "make the figures", "plot for the report", "architecture diagram", "the figure is confusing", "simplify the chart", "remove the text from the figure", "표도 이미지로", "그림 모아 보기", "캡션 복사", "figure sheet", "copy the caption", "캡션 줄여", "본문이 그림을 설명", "그림이 글을 설명하는지", "원고를 웹으로", "원고 복사", "문단 복사", "요소 선택", "selector 복사", "그림 요소 지정", "manuscript page", and any figure destined for a document rather than an interactive dashboard.
 ---
 
 # Report figures
@@ -162,6 +162,32 @@ deadline. Every figure was accurate and most were redrawn anyway:
    on the clipboard. The caption button drops the `그림 n.` number by default because
    word processors number captions themselves (`--keep-number` keeps it). Open it in a
    browser; it works from `file://`. Do not commit it: it duplicates every image.
+8. **Build the manuscript sheet** when the body text is pasted into a word processor
+   too, or when someone reviews the draft and points at parts of it.
+   `python <skills>/report-figures/scripts/manuscript_sheet.py <manuscript.md>` writes
+   `<manuscript>.html`: the whole manuscript, a bracket line left of each section nested
+   by heading depth, figures that settle in the vertical middle of the viewport when
+   scrolling stops near them, and a floating switch
+   at the bottom right. There are no buttons beside the text, so nothing narrows it.
+   - **Copy mode.** Clicking a heading, paragraph, list or table copies it; clicking a
+     bracket copies that section (text only, figures skipped, tables as tab-separated
+     rows). A figure is copied only by clicking the figure (its PNG); its caption and path
+     lines copy the caption and the absolute path. Text is copied plain so the word
+     processor applies its template style; tables also carry HTML. Claim and in-text
+     lines are shown, never copied.
+   - **Select mode.** Clicking copies a selector: file, line and section path for text;
+     for a figure, the matplotlib element under the pointer (text, bar or box, line, grid
+     line, single point, tick, axis, legend, plot area) with its SVG id path, its text and
+     its position. Moving off a small element toward the figure's edge selects the next
+     larger group. Shift-click collects several; Esc clears. Paste the selectors into the
+     request so the next edit names exactly what to change.
+
+   Element-level selection needs an SVG next to each PNG. Save both from the plotting
+   script, with stable ids and no date:
+   `fig.savefig(path.with_suffix(".svg"), metadata={"Date": None})` and
+   `rcParams["svg.hashsalt"] = "<fixed>"`. Keep the default `svg.fonttype = "path"`:
+   glyphs stay exact and matplotlib writes each label's text as a comment the selector
+   reads. A figure with only a PNG is selected as a whole. Do not commit the HTML.
 
 ## What this skill does not do
 
@@ -181,6 +207,8 @@ deadline. Every figure was accurate and most were redrawn anyway:
 | `scripts/figcheck_test.py` | Tests for the checker: `python scripts/figcheck_test.py`. |
 | `scripts/figure_sheet.py` | stdlib-only builder of the one-page figure sheet: every figure and table with copy-image, copy-path and copy-caption buttons. Exit 1 on a missing file or no figure found. |
 | `scripts/figure_sheet_test.py` | Tests for the sheet builder: `python scripts/figure_sheet_test.py`. |
+| `scripts/manuscript_sheet.py` | stdlib-only builder of the whole manuscript as one page: section brackets, copy mode (click an element or a bracket to copy it) and select mode (click to copy a selector, down to single SVG elements of a figure). Reuses `figure_sheet.py`'s figure-block reader. Exit 1 on a missing figure file (page still written). |
+| `scripts/manuscript_sheet_test.py` | Tests for the manuscript page: `python scripts/manuscript_sheet_test.py`. |
 | `scripts/figure_refs.py` | stdlib-only check that captions are names, every block has a claim, and the body mentions every figure and repeats its numbers. |
 | `scripts/figure_refs_test.py` | Tests for the reference check: `python scripts/figure_refs_test.py`. |
 

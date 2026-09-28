@@ -211,6 +211,13 @@ make. None of them commits — the pre-commit review gate stays with the user.
   with every figure and table in manuscript order and buttons that copy the image, its
   absolute path and its caption (number dropped by default). HTML because a PDF viewer
   cannot put an image on the clipboard. Tests: `scripts/figure_sheet_test.py`.
+- `scripts/manuscript_sheet.py` (stdlib Python): the whole manuscript as one HTML page
+  with a bracket line per section, nested by depth, and a floating switch. Copy mode:
+  clicking a heading, paragraph, table, bracket (whole section, text only) or figure
+  (PNG) copies it as plain text, or HTML plus tab-separated text for tables. Select
+  mode: clicking copies a selector (file:line and section path; for a figure with an SVG
+  next to its PNG, the matplotlib element's id path, text and position; moving outward
+  selects larger groups). Tests: `scripts/manuscript_sheet_test.py`.
 - Captions are names only; each figure block carries a claim line and an in-text line
   for whoever writes the body. `scripts/figure_refs.py` checks that the body mentions
   every figure and repeats its numbers; the cold-read test gives a fresh agent only the
