@@ -29,8 +29,8 @@ The page
                on disk since the page loaded (another editor or agent), so nothing is
                overwritten. Any change to the Markdown or a figure file reloads the page.
 
-A figure lands in the vertical middle of the viewport when scrolling stops near it or its
-reference is clicked. "그림 N" / "표 N" in the text link to that figure. Images are
+"그림 N" / "표 N" in the text link to that figure and scroll it to the vertical middle of
+the viewport; plain scrolling is never adjusted. Images are
 embedded, so the written page opens from disk. Exit 1 if a figure file is missing (the
 page is still written, with a placeholder).
 """
@@ -367,7 +367,6 @@ TEMPLATE = r"""<!doctype html>
 <style>
   :root { --ink:#1a1a1a; --ink2:#555; --line:#d0d0d0; --bg:#fff; --soft:#f6f6f6; --accent:#0072B2; --tint:rgba(0,114,178,.07); --warn:#D55E00; }
   * { box-sizing: border-box; }
-  html { scroll-snap-type: y proximity; }
   body { margin:0; background:var(--bg); color:var(--ink); line-height:1.8;
          font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 24px 16px 160px; }
@@ -398,7 +397,7 @@ TEMPLATE = r"""<!doctype html>
   table { border-collapse: collapse; font-size: 14px; }
   th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
   th { border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); }
-  .fig { margin: 32px 0; scroll-snap-align: center; }
+  .fig { margin: 32px 0; }
   .art { display: flex; justify-content: center; }
   .art svg, .art img { display: block; width: 100%; height: auto; max-height: calc(100vh - 200px); }
   figcaption { margin: 12px auto 4px; font-weight: 600; text-align: center; }
