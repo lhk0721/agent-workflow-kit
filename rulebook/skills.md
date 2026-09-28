@@ -217,7 +217,9 @@ make. None of them commits — the pre-commit review gate stays with the user.
   (PNG) copies it as plain text, or HTML plus tab-separated text for tables. Select
   mode: clicking copies a selector (file:line and section path; for a figure with an SVG
   next to its PNG, the matplotlib element's id path, text and position; moving outward
-  selects larger groups). Tests: `scripts/manuscript_sheet_test.py`.
+  selects larger groups). With `--serve`, an edit mode writes one block's Markdown back
+  (refused if that block changed on disk since load) and the page reloads on file
+  changes. Tests: `scripts/manuscript_sheet_test.py`.
 - Captions are names only; each figure block carries a claim line and an in-text line
   for whoever writes the body. `scripts/figure_refs.py` checks that the body mentions
   every figure and repeats its numbers; the cold-read test gives a fresh agent only the

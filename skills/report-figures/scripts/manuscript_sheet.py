@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Build one self-contained HTML page of a whole Markdown manuscript where clicking an
-element copies it, or copies a selector that names it.
+element copies it, copies a selector that names it, or (served) edits it.
 
 agent-workflow-kit — system-owned. Stdlib only.
 
     python manuscript_sheet.py report.md [--out report.html] [--title T] [--lang ko|en]
+    python manuscript_sheet.py report.md --serve [--port 8765] [--no-open]
 
 The page
   Each section has a bracket line on its left, nested by heading depth. A floating switch
-  at the bottom right picks one of two modes.
+  at the bottom right picks the mode.
 
   Copy mode    click a heading, paragraph, list or table to copy it, or a bracket to copy
                that whole section (text only: figures are skipped, tables go in as
@@ -22,11 +23,16 @@ The page
                bar, line, dot, tick, axis, legend, plot area) with its id path, text and
                position. Moving the pointer off a small element toward the figure's edge
                selects the next larger group. Shift-click adds to the selection; Esc clears.
+  Edit mode    only with --serve: click a heading, paragraph, list, table or caption to
+               edit its Markdown source in place; Ctrl+Enter saves it to the file. The
+               server rewrites only that block's lines and refuses when the block changed
+               on disk since the page loaded (another editor or agent), so nothing is
+               overwritten. Any change to the Markdown or a figure file reloads the page.
 
 A figure lands in the vertical middle of the viewport when scrolling stops near it or its
-reference is clicked. "그림 N" / "표 N" in the text link to
-that figure. Images are embedded, so the page opens from disk. Exit 1 if a figure file is
-missing (the page is still written, with a placeholder).
+reference is clicked. "그림 N" / "표 N" in the text link to that figure. Images are
+embedded, so the written page opens from disk. Exit 1 if a figure file is missing (the
+page is still written, with a placeholder).
 """
 
 from __future__ import annotations
@@ -60,7 +66,10 @@ STRINGS = {
            "quote": "인용", "code": "코드", "figure": "그림", "caption": "캡션", "path": "경로",
            "axes": "그래프 영역", "xaxis": "가로축", "yaxis": "세로축", "xtick": "가로 눈금",
            "ytick": "세로 눈금", "legend": "범례", "text": "글자", "patch": "도형", "line": "선",
-           "points": "점 묶음", "lines": "선 묶음", "dot": "점", "pos": "가로 {x}% 세로 {y}%"},
+           "points": "점 묶음", "lines": "선 묶음", "dot": "점", "pos": "가로 {x}% 세로 {y}%",
+           "edit": "편집", "save": "저장", "cancel": "취소", "saved": "저장 완료", "hint": "Ctrl+Enter 저장 · Esc 취소",
+           "conflict": "그사이 원고가 바뀌어 저장하지 못했습니다. 고친 글을 복사해 두고 취소를 누르면 새 원고를 불러옵니다.",
+           "offline": "서버에 연결하지 못했습니다. manuscript_sheet.py --serve가 실행 중인지 확인하세요."},
     "en": {"copy": "Copy element", "select": "Select element", "done": "Copied", "failed": "Copy failed",
            "selected": "{n} selector(s) copied", "missing": "Missing file", "toc": "Contents",
            "source": "Source", "made": "Built", "claim": "Claim", "notes": "In text",
@@ -68,7 +77,10 @@ STRINGS = {
            "quote": "quote", "code": "code", "figure": "figure", "caption": "caption", "path": "path",
            "axes": "plot area", "xaxis": "x axis", "yaxis": "y axis", "xtick": "x tick",
            "ytick": "y tick", "legend": "legend", "text": "text", "patch": "shape", "line": "line",
-           "points": "points", "lines": "lines", "dot": "point", "pos": "x {x}% y {y}%"},
+           "points": "points", "lines": "lines", "dot": "point", "pos": "x {x}% y {y}%",
+           "edit": "Edit", "save": "Save", "cancel": "Cancel", "saved": "Saved", "hint": "Ctrl+Enter save · Esc cancel",
+           "conflict": "The manuscript changed meanwhile, so this was not saved. Copy your text, then Cancel to load the new version.",
+           "offline": "Could not reach the server. Check that manuscript_sheet.py --serve is running."},
 }
 
 
@@ -126,6 +138,8 @@ def parse(text: str, bases: list[Path]) -> list[dict]:
     blocks: list[dict] = []
     i, n = 0, len(lines)
     while i < n:
+        if blocks and "end" not in blocks[-1]:
+            blocks[-1]["end"] = min(i, n)   # the last line the previous block consumed (1-based)
         ln, s = lines[i], lines[i].strip()
         start = i + 1
         if not s:
@@ -189,6 +203,8 @@ def parse(text: str, bases: list[Path]) -> list[dict]:
                            "caption": m.group(1).strip(), "claim": None, "notes": None, "line": start})
         else:
             blocks.append({"kind": "para", "text": joined, "line": start})
+    if blocks and "end" not in blocks[-1]:
+        blocks[-1]["end"] = n
     return blocks
 
 
@@ -241,7 +257,9 @@ def _clip(text: str, n: int = 40) -> str:
 # ---- page ---------------------------------------------------------------------------
 
 def build(blocks: list[dict], title: str, source: str, lang: str, keep_number: bool,
-          last_line: int | None = None) -> tuple[str, list[str]]:
+          last_line: int | None = None, source_lines: list[str] | None = None) -> tuple[str, list[str]]:
+    """source_lines turns on the edit mode: each block carries its Markdown source and line
+    range, which only the --serve page can write back."""
     t = STRINGS[lang]
     last_line = last_line or (blocks[-1]["line"] if blocks else 0)
     anchors = {b["label"].replace(" ", ""): _anchor(b["label"]) for b in blocks if b["kind"] == "figure" and b.get("label")}
@@ -317,6 +335,8 @@ def build(blocks: list[dict], title: str, source: str, lang: str, keep_number: b
             else:
                 body = f'<pre class="el" data-k="code" data-i="{i}"><code>{html.escape(b["text"])}</code></pre>'
             out.append(body)
+        if source_lines is not None and "end" in b:
+            item.update(line=b["line"], end=b["end"], src="\n".join(source_lines[b["line"] - 1:b["end"]]))
         data.append(item)
     out.extend("</section>" for _ in stack)
 
@@ -329,6 +349,8 @@ def build(blocks: list[dict], title: str, source: str, lang: str, keep_number: b
             .replace("__TOC__", toc_html)
             .replace("__COPY__", t["copy"])
             .replace("__SELECT__", t["select"])
+            .replace("__EDIT_BUTTON__", f'<button type="button" data-mode="edit">{t["edit"]}</button>' if source_lines is not None else "")
+            .replace("__EDITABLE__", "true" if source_lines is not None else "false")
             .replace("__STRINGS__", json.dumps(t, ensure_ascii=False))
             .replace("__DATA__", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
             .replace("__BODY__", "\n".join(out)))
@@ -341,6 +363,7 @@ TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
+<link rel="icon" href="data:,">
 <style>
   :root { --ink:#1a1a1a; --ink2:#555; --line:#d0d0d0; --bg:#fff; --soft:#f6f6f6; --accent:#0072B2; --tint:rgba(0,114,178,.07); --warn:#D55E00; }
   * { box-sizing: border-box; }
@@ -403,6 +426,14 @@ TEMPLATE = r"""<!doctype html>
            white-space: pre-wrap; overflow-wrap: anywhere; opacity: 0; transition: opacity .15s; pointer-events: none; }
   .toast.show { opacity: 1; }
   .toast.bad { background: var(--warn); }
+  body[data-mode="edit"] .el { cursor: text; }
+  body[data-mode="edit"] .art, body[data-mode="edit"] .path, body[data-mode="edit"] .brk { cursor: default; }
+  .editor { margin: 0 0 16px; }
+  .editor textarea { display: block; width: 100%; min-height: 3em; resize: vertical; padding: 8px 10px; border: 1.5px solid var(--accent);
+                     border-radius: 4px; font: 15px/1.75 Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; color: var(--ink); background: #fff; }
+  .editor .ebar { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--ink2); }
+  .editor button { font: inherit; font-size: 13px; padding: 3px 12px; border-radius: 5px; border: 1px solid #c4c4c4; background: #fff; cursor: pointer; }
+  .editor button[data-e="save"] { background: var(--accent); border-color: var(--accent); color: #fff; }
   @media (max-width: 640px) { .sec { padding-left: 16px; } .brk { width: 9px; } }
   @media print { .fab, .toast, .box, nav, .note, .path, .meta, .brk { display: none; } .fig { break-inside: avoid; } }
 </style>
@@ -413,11 +444,12 @@ TEMPLATE = r"""<!doctype html>
 __TOC__
 __BODY__
 </main>
-<div class="fab" role="group"><button type="button" data-mode="copy">__COPY__</button><button type="button" data-mode="select">__SELECT__</button></div>
+<div class="fab" role="group"><button type="button" data-mode="copy">__COPY__</button><button type="button" data-mode="select">__SELECT__</button>__EDIT_BUTTON__</div>
 <div class="toast" role="status" aria-live="polite"></div>
 <script id="data" type="application/json">__DATA__</script>
 <script>
 const T = __STRINGS__;
+const EDITABLE = __EDITABLE__;
 const DATA = JSON.parse(document.getElementById("data").textContent);
 const SKIP = new Set(["figure", "hr"]);
 const LEAF = /^(text|patch|line2d|PathCollection|LineCollection|PolyCollection)_\d+$/;
@@ -555,7 +587,7 @@ function partSelector(i, p, svg) {
 // ---- what is under the pointer ----
 function resolve(e) {
   const t = e.target;
-  if (!(t instanceof Element) || t.closest(".fab, nav, .meta")) return null;
+  if (!(t instanceof Element) || t.closest(".fab, nav, .meta, .editor")) return null;
   const brk = t.closest(".brk");
   if (brk) { const sec = brk.parentElement; return {key: "s" + brk.dataset.i, i: +brk.dataset.i, k: "section", rect: () => R(sec.getBoundingClientRect()), tip: T.section}; }
   const art = t.closest(".art");
@@ -629,7 +661,7 @@ function toast(msg, bad) {
   clearTimeout(toastEl._t); toastEl._t = setTimeout(() => toastEl.classList.remove("show"), bad ? 3000 : 2200);
 }
 document.addEventListener("click", async e => {
-  if (!(e.target instanceof Element) || e.target.closest(".fab")) return;
+  if (!(e.target instanceof Element) || e.target.closest(".fab, .editor")) return;
   const a = e.target.closest("a");
   if (a) {
     if (a.classList.contains("ref")) {
@@ -643,6 +675,7 @@ document.addEventListener("click", async e => {
   if (String(getSelection())) return;   // the reader was selecting text by hand
   const r = resolve(e);
   if (!r) return;
+  if (mode === "edit") { if (!editing) startEdit(r); return; }
   if (mode === "copy") {
     try { await copyTarget(r); toast(T.done + " · " + (T[r.k] || r.k)); }
     catch (err) { console.error(err); toast(T.failed, true); }
@@ -657,21 +690,213 @@ document.addEventListener("click", async e => {
   try { await copyText(picked.map(p => p.sel).join("\n")); toast(T.selected.replace("{n}", picked.length) + "\n" + picked.map(p => p.sel).join("\n")); }
   catch (err) { console.error(err); toast(T.failed, true); }
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") clearPicked(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !editing) clearPicked(); });
+
+// ---- edit (only on the --serve page) ----
+let editing = null, pendingReload = false;
+function reloadKeep() {
+  try { sessionStorage.setItem("manuscript-sheet-scroll", String(scrollY)); } catch (e) {}
+  location.reload();
+}
+try {
+  const y = sessionStorage.getItem("manuscript-sheet-scroll");
+  if (y !== null) { sessionStorage.removeItem("manuscript-sheet-scroll"); history.scrollRestoration = "manual"; scrollTo(0, +y); }
+} catch (e) {}
+function stopEdit() {
+  if (!editing) return;
+  editing.editor.remove(); editing.target.style.display = "";
+  editing = null;
+  if (pendingReload) reloadKeep();
+}
+function startEdit(r) {
+  const d = DATA[r.i];
+  if (!EDITABLE || d.src === undefined || ["section", "part", "figure", "path"].includes(r.k)) return;
+  const el = r.k === "caption" ? document.querySelector(`.art[data-i="${r.i}"]`).closest(".fig") : document.querySelector(`.el[data-i="${r.i}"]`);
+  const editor = document.createElement("div");
+  editor.className = "editor";
+  editor.innerHTML = '<textarea spellcheck="false"></textarea><div class="ebar"><button type="button" data-e="save"></button><button type="button" data-e="cancel"></button><span></span></div>';
+  const ta = editor.querySelector("textarea");
+  ta.value = d.src;
+  editor.querySelector('[data-e="save"]').textContent = T.save;
+  editor.querySelector('[data-e="cancel"]').textContent = T.cancel;
+  editor.querySelector("span").textContent = T.hint;
+  el.after(editor);
+  if (r.k !== "caption") el.style.display = "none";
+  editing = {i: r.i, target: el, editor};
+  hide();
+  const fit = () => { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; };
+  ta.addEventListener("input", fit); fit(); ta.focus();
+  ta.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.preventDefault(); stopEdit(); }
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+  });
+  editor.addEventListener("click", e => {
+    const b = e.target.closest("button[data-e]");
+    if (b) { if (b.dataset.e === "save") save(); else stopEdit(); }
+  });
+  async function save() {
+    if (ta.value === d.src) { stopEdit(); return; }
+    try {
+      const res = await fetch("/edit", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({line: d.line, end: d.end, old: d.src, new: ta.value})});
+      const j = await res.json();
+      if (!j.ok) { toast(T.conflict, true); pendingReload = true; return; }
+      toast(T.saved); pendingReload = true; stopEdit();
+    } catch (err) { console.error(err); toast(T.offline, true); }
+  }
+}
+if (EDITABLE && window.EventSource) {
+  new EventSource("/events").onmessage = () => { if (editing) pendingReload = true; else reloadKeep(); };
+}
 
 // ---- mode switch ----
 function setMode(m) {
+  if (m === "edit" && !EDITABLE) m = "copy";
+  stopEdit();
   mode = m; document.body.dataset.mode = m;
   for (const b of document.querySelectorAll(".fab button")) b.setAttribute("aria-pressed", String(b.dataset.mode === m));
   try { localStorage.setItem("manuscript-sheet-mode", m); } catch (e) {}
   hide(); if (m === "copy") clearPicked();
 }
 document.querySelector(".fab").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
-setMode(mode === "select" ? "select" : "copy");
+setMode(["select", "edit"].includes(mode) ? mode : "copy");
 </script>
 </body>
 </html>
 """
+
+
+# ---- --serve: live page with edit mode ------------------------------------------------
+
+def apply_edit(path: Path, line: int, old: str, new: str) -> tuple[bool, int]:
+    """Replace the block whose source is `old` with `new`. The block is looked for at
+    `line` first, then anywhere if it is there exactly once (lines above it moved). Any
+    other state means someone else changed it: nothing is written. Line endings and a
+    final newline are kept."""
+    raw = path.read_bytes().decode("utf-8")
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    lines = raw.split(nl)
+    want = old.split("\n")
+    n = len(want)
+
+    def at(k: int) -> bool:
+        return lines[k:k + n] == want
+
+    k = line - 1
+    if not (0 <= k and at(k)):
+        hits = [j for j in range(len(lines) - n + 1) if at(j)]
+        if len(hits) != 1:
+            return False, 0
+        k = hits[0]
+    lines[k:k + n] = new.replace("\r\n", "\n").split("\n")
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(nl.join(lines).encode("utf-8"))
+    tmp.replace(path)
+    return True, k + 1
+
+
+def make_server(src: Path, port: int, title: str | None, lang: str, keep_number: bool):
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    watched: list[Path] = [src]
+    lock = threading.Lock()
+
+    def render() -> bytes:
+        text = src.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        blocks = parse(text, [src.parent, Path.cwd()])
+        files = [src]
+        for b in blocks:
+            if b["kind"] == "figure":
+                files += [Path(b["file"]), Path(b["file"]).with_suffix(".svg")]
+        watched[:] = files
+        first_h1 = next((inline_plain(b["text"]) for b in blocks if b["kind"] == "heading" and b["level"] == 1), None)
+        page, _ = build(blocks, title or first_h1 or src.name, src.as_posix(), lang, keep_number,
+                        last_line=len(lines), source_lines=lines)
+        return page.encode("utf-8")
+
+    def stamp() -> tuple:
+        return tuple(p.stat().st_mtime_ns if p.exists() else 0 for p in list(watched))
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def reply(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            if path in ("/", "/index.html"):
+                self.reply(200, render(), "text/html; charset=utf-8")
+            elif path == "/events":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                last, idle = stamp(), 0
+                try:
+                    while True:
+                        time.sleep(0.5)
+                        now = stamp()
+                        if now != last:
+                            last, idle = now, 0
+                            self.wfile.write(b"data: reload\n\n")
+                        elif (idle := idle + 1) >= 30:
+                            idle = 0
+                            self.wfile.write(b": ping\n\n")
+                        self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+                    return
+            else:
+                self.reply(404, b"not found", "text/plain")
+
+        def do_POST(self):
+            if self.path != "/edit":
+                return self.reply(404, b"not found", "text/plain")
+            # a JSON content type forces a CORS preflight, which this server never answers,
+            # so another site open in the browser cannot write to the manuscript
+            if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+                return self.reply(415, b"json only", "text/plain")
+            origin = self.headers.get("Origin")
+            if origin and origin != f"http://{self.headers.get('Host')}":
+                return self.reply(403, b"forbidden", "text/plain")
+            try:
+                req = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                with lock:
+                    ok, at = apply_edit(src, int(req["line"]), str(req["old"]), str(req["new"]))
+            except (ValueError, KeyError, TypeError):
+                return self.reply(400, b"bad request", "text/plain")
+            body = json.dumps({"ok": ok, "line": at}).encode()
+            self.reply(200 if ok else 409, body, "application/json")
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    httpd.daemon_threads = True
+    return httpd
+
+
+def serve(src: Path, port: int, title: str | None, lang: str, keep_number: bool, open_browser: bool = True) -> int:
+    import webbrowser
+
+    httpd = make_server(src, port, title, lang, keep_number)
+    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    print(f"serving {src} at {url} (Ctrl+C to stop)")
+    if open_browser:
+        webbrowser.open(url)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.server_close()
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -684,7 +909,12 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--title", help="default: the first # heading, else the file name")
     ap.add_argument("--lang", choices=sorted(STRINGS), default="ko")
     ap.add_argument("--keep-number", action="store_true", help='keep "그림 N." in the copied caption')
+    ap.add_argument("--serve", action="store_true", help="serve a live page with an edit mode instead of writing a file")
+    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--no-open", action="store_true", help="with --serve: do not open a browser")
     a = ap.parse_args(argv)
+    if a.serve:
+        return serve(a.markdown, a.port, a.title, a.lang, a.keep_number, open_browser=not a.no_open)
 
     src: Path = a.markdown
     text = src.read_text(encoding="utf-8")

@@ -4,16 +4,18 @@
 from __future__ import annotations
 
 import base64
+import http.client
 import json
 import re
 import sys
 import tempfile
 import textwrap
+import threading
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from manuscript_sheet import build, inline_html, inline_plain, main, parse, plain  # noqa: E402
+from manuscript_sheet import apply_edit, build, inline_html, inline_plain, main, make_server, parse, plain  # noqa: E402
 
 # 1x1 white PNG
 PNG = base64.b64decode(
@@ -138,6 +140,70 @@ class ManuscriptSheetTest(unittest.TestCase):
         out = self.dir / "out.html"
         self.assertEqual(main([str(self.md), "--out", str(out)]), 1)
         self.assertIn("파일 없음", out.read_text(encoding="utf-8"))
+
+    def test_block_line_ranges(self):
+        spans = [(b["kind"], b["line"], b["end"]) for b in self.blocks]
+        self.assertEqual(spans[2], ("para", 6, 7))      # two source lines, one paragraph
+        self.assertEqual(spans[3], ("figure", 9, 12))
+        self.assertEqual(spans[4], ("table", 14, 16))
+        self.assertEqual(spans[5], ("list", 18, 20))
+
+    def test_page_without_serve_has_no_edit_mode(self):
+        page, _, data = self.page()
+        self.assertIn("const EDITABLE = false;", page)
+        self.assertNotIn('<button type="button" data-mode="edit">', page)
+        self.assertNotIn("src", data[2])
+
+    def test_apply_edit_replaces_only_that_block(self):
+        para = "첫 문단은 **굵게**와 `코드`와 [링크 `a.md`](a.md)를\n두 줄에 걸쳐 쓴다. 그림 1을 본다."
+        ok, at = apply_edit(self.md, 6, para, "고친 문단.")
+        self.assertEqual((ok, at), (True, 6))
+        text = self.md.read_text(encoding="utf-8")
+        self.assertIn("\n고친 문단.\n\n> **[그림 1 자리]**", text)
+        self.assertTrue(text.endswith("다음 문단.\n"))
+
+    def test_apply_edit_follows_a_moved_block_and_refuses_a_changed_one(self):
+        self.md.write_text("머리 한 줄 더.\n\n" + self.md.read_text(encoding="utf-8"), encoding="utf-8")
+        ok, at = apply_edit(self.md, 25, "세부 문단.", "새 세부 문단.")   # stale line number
+        self.assertEqual((ok, at), (True, 26))
+        ok, _ = apply_edit(self.md, 26, "세부 문단.", "또 고침.")       # already changed
+        self.assertFalse(ok)
+        self.assertIn("새 세부 문단.", self.md.read_text(encoding="utf-8"))
+
+    def test_apply_edit_keeps_crlf(self):
+        self.md.write_bytes(self.md.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+        self.assertTrue(apply_edit(self.md, 25, "세부 문단.", "가\n나")[0])
+        raw = self.md.read_bytes()
+        self.assertIn("가\r\n나\r\n".encode(), raw)
+        self.assertNotIn(b"\r\r", raw)
+        self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"))
+
+    def test_server_page_and_edit(self):
+        httpd = make_server(self.md, 0, None, "ko", False)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        port = httpd.server_address[1]
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            c.request("GET", "/")
+            page = c.getresponse().read().decode()
+            self.assertIn("const EDITABLE = true;", page)
+            self.assertIn('<button type="button" data-mode="edit">', page)
+            body = json.dumps({"line": 25, "old": "세부 문단.", "new": "서버로 고침."})
+            c.request("POST", "/edit", body, {"Content-Type": "text/plain"})
+            self.assertEqual(c.getresponse().status, 415)       # a plain form post cannot write
+            c.request("POST", "/edit", body, {"Content-Type": "application/json", "Origin": "http://evil.test"})
+            self.assertEqual(c.getresponse().status, 403)
+            c.request("POST", "/edit", body, {"Content-Type": "application/json"})
+            r = c.getresponse()
+            self.assertEqual((r.status, json.loads(r.read())["ok"]), (200, True))
+            self.assertIn("서버로 고침.", self.md.read_text(encoding="utf-8"))
+            c.request("POST", "/edit", body, {"Content-Type": "application/json"})
+            r = c.getresponse()
+            self.assertEqual(r.status, 409)
+            r.read()
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
 
     def test_main_default_out(self):
         self.assertEqual(main([str(self.md)]), 0)
