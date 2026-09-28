@@ -166,8 +166,8 @@ deadline. Every figure was accurate and most were redrawn anyway:
    too, or when someone reviews the draft and points at parts of it.
    `python <skills>/report-figures/scripts/manuscript_sheet.py <manuscript.md>` writes
    `<manuscript>.html`: the whole manuscript, a bracket line left of each section nested
-   by heading depth, figures that settle in the vertical middle of the viewport when
-   scrolling stops near them, and a floating switch
+   by heading depth, "그림 n" references that scroll the figure to the vertical middle of
+   the viewport (plain scrolling is never snapped), and a floating switch
    at the bottom right. There are no buttons beside the text, so nothing narrows it.
    - **Copy mode.** Clicking a heading, paragraph, list or table copies it; clicking a
      bracket copies that section (text only, figures skipped, tables as tab-separated
