@@ -24,7 +24,7 @@ for (const h of ['pre-commit', 'commit-msg', 'pre-push']) {
   check(`.githooks/${h}`, existsSync(`.githooks/${h}`), 'reinstall the kit (install.mjs)');
 }
 
-for (const s of ['ko-ui-text', 'ko-writing', 'issue-start', 'post-pr-cleanup', 'ui-evidence', 'experiment-gate', 'session-handoff']) {
+for (const s of ['ko-ui-text', 'ko-writing', 'issue-start', 'post-pr-cleanup', 'ui-evidence', 'experiment-gate', 'session-handoff', 'report-figures']) {
   check(`.claude/skills/${s}/SKILL.md`, existsSync(`.claude/skills/${s}/SKILL.md`), 'reinstall the kit (install.mjs)');
 }
 if (ignored('.claude/skills')) warn('.claude/ is git-ignored — skills work in this clone but are not shared with the team');

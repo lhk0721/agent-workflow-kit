@@ -18,9 +18,9 @@ so fixes flow from here to every repo instead of drifting per-copy.
   agents-freshness, repo-tools, and the skill listing after a compaction
 - `agent-system.yaml` (repo settings) + `agent-system.lock.json` (version pin, install
   manifest, a hash per system-owned file so doctor can spot in-place edits)
-- `.claude/skills/` — seven skills: `ko-writing` and `ko-ui-text` (Korean writing),
-  `issue-start`, `post-pr-cleanup`, `ui-evidence`, `experiment-gate`, `session-handoff`
-  (workflow); they load themselves when the task matches
+- `.claude/skills/` — eight skills: `ko-writing` and `ko-ui-text` (Korean writing),
+  `issue-start`, `post-pr-cleanup`, `ui-evidence`, `experiment-gate`, `session-handoff`,
+  `report-figures` (workflow); they load themselves when the task matches
   (see `docs/agent-workflow/skills.md`)
 
 ## Install into your repo (owner, once per repo)

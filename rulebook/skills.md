@@ -180,6 +180,31 @@ make. None of them commits — the pre-commit review gate stays with the user.
   cross-issue and longer-lived.
 - Reads: `notes_dir` (the note goes there, index line included).
 
+### report-figures
+
+- Purpose: figures for documents read on paper or as a PDF — one claim per figure, no
+  explanatory sentences inside it, grayscale data charts, values on the vertical axis,
+  structure as flat 2D box-and-arrow diagrams. Comes from a model write-up whose
+  teammates found 3D architecture renders confusing, in-figure sentences noisy,
+  saturated palettes machine-looking, horizontal dot plots hard to read and a long
+  latency tail invisible.
+- Triggers: "그림 만들어", "도식 그려", "구조도", "그래프 단순하게", "그림 안 글씨 빼",
+  "grayscale로", "AI 티 나", "make the figures", "architecture diagram",
+  "simplify the chart".
+- Procedure: caption conclusion first (a figure that needs two conclusions is split) →
+  form picked from the job (columns, difference columns, overflow-binned histogram,
+  slope chart, box-and-arrow diagram) → drawn in the repo's one plotting script with
+  `assets/grayscale.mplstyle` → `scripts/figcheck.py` → every PNG rendered and opened →
+  whatever left the figure (axis start, line and colour meaning) written into the caption.
+- `scripts/figcheck.py` (stdlib Python, static): fails on sentence-like strings in
+  titles, text, annotations, axis and tick labels, legend labels, and on non-gray colour
+  literals outside functions marked `figcheck: diagram` (module constants and dict
+  literals are resolved); warns on horizontal bars and on bars whose length axis starts
+  above zero. Tests: `scripts/figcheck_test.py`.
+- Does not: judge whether the plotted comparison is fair (`experiment-gate`); write the
+  caption prose (`ko-writing` §3); check layout — the rendered image is looked at.
+- Reads: no kit config; the script path is the argument.
+
 ## Repo-specific skills
 
 A repo's own skills live beside these under `.claude/skills/` and the kit never touches
@@ -191,7 +216,8 @@ with the triggers and the judgment calls, a script for the steps that must not v
 ## Ownership
 
 - `.claude/skills/ko-writing/**`, `ko-ui-text/**`, `issue-start/**`, `post-pr-cleanup/**`,
-  `ui-evidence/**`, `experiment-gate/**` and `session-handoff/**` are system-owned:
+  `ui-evidence/**`, `experiment-gate/**`, `session-handoff/**` and `report-figures/**` are
+  system-owned:
   `update` overwrites them. Don't edit in place — send the fix to the kit repo.
 - Any other directory under `.claude/skills/` is yours. The installer never touches it.
 - The config and glossary files above are repo-owned. `update` never touches them.

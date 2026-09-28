@@ -1,0 +1,47 @@
+# agent-workflow-kit — report-figures. Grayscale style for figures in documents.
+# Use: plt.style.use(".claude/skills/report-figures/assets/grayscale.mplstyle")
+# Set font.family yourself: it depends on the document's script (Hangul needs a Hangul font).
+
+axes.prop_cycle: cycler('color', ['333333', '8c8c8c', 'c9c9c9', '000000'])
+
+figure.facecolor: white
+axes.facecolor: white
+savefig.facecolor: white
+savefig.dpi: 200
+savefig.bbox: tight
+savefig.pad_inches: 0.15
+
+font.size: 10
+axes.titlesize: 10.5
+axes.titleweight: semibold
+axes.titlelocation: left
+axes.labelsize: 10
+axes.labelcolor: 555555
+text.color: 1a1a1a
+axes.unicode_minus: False
+
+axes.edgecolor: bdbdbd
+axes.linewidth: 0.8
+axes.spines.top: False
+axes.spines.right: False
+axes.grid: True
+axes.grid.axis: y
+axes.axisbelow: True
+grid.color: e6e6e6
+grid.linewidth: 0.8
+
+xtick.color: 8c8c8c
+ytick.color: 8c8c8c
+xtick.labelcolor: 555555
+ytick.labelcolor: 555555
+xtick.major.size: 0
+ytick.major.size: 0
+
+lines.linewidth: 2
+lines.markersize: 6
+patch.edgecolor: white
+patch.linewidth: 0.6
+hist.bins: auto
+
+legend.frameon: False
+legend.fontsize: 9
