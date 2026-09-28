@@ -48,7 +48,7 @@ Two files support that path:
 
 | File | Purpose |
 | --- | --- |
-| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit or shaped as sentences, bold overuse, quantities placed after the noun, and — as warnings for a human to judge — headings and figure-caption names that hide a claim (relative clause, ending in 것/법, "~아닌" contrast, rhetorical words, a large number at the end). `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
+| `scripts/check.py` | Mechanical check, stdlib Python. Counts banned patterns (em dash, mid-sentence middle dot, "~를 통해", "~것 같다", …), sentence-ending mix (해라체 / 하십시오체 / 해요체), paragraphs over the sentence limit, headings over the length limit or shaped as sentences, bold overuse, quantities placed after the noun, and — as warnings for a human to judge — headings and figure captions that hide a claim (relative clause, ending in 것/법, "~아닌" contrast, rhetorical words, a large number at the end) or carry a sentence after the name. `--from`/`--to` scope the check to a body range; `--heading 25` is the limit for external reports. Run it after writing, before handing the text over. |
 | `references/style-conversion.md` | Rule table for switching a finished draft between 해라체 (`~한다`) and 하십시오체 (`~합니다`), with the exceptions that need a hand and the rule that a heading names its topic in either tone (a sentence heading's claim moves to the first sentence of the body). |
 
 Run the check from the repo root: `python .claude/skills/ko-writing/scripts/check.py <file.md>`.
@@ -245,7 +245,7 @@ make. None of them commits — the pre-commit review gate stays with the user.
 - Triggers: "그림 만들어", "도식 그려", "구조도", "그래프 단순하게", "그림 안 글씨 빼",
   "grayscale로", "AI 티 나", "make the figures", "architecture diagram",
   "simplify the chart".
-- Procedure: caption conclusion first (a figure that needs two conclusions is split) →
+- Procedure: claim line first (a figure that needs two conclusions is split) →
   form picked from the job (columns, difference columns, overflow-binned histogram,
   slope chart, box-and-arrow diagram) → drawn in the repo's one plotting script with
   `assets/grayscale.mplstyle` → `scripts/figcheck.py` → every PNG rendered and opened →
