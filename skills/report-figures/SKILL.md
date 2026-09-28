@@ -89,6 +89,11 @@ deadline. Every figure was accurate and most were redrawn anyway:
     numbers right-aligned with their header. Measure text with the real font instead of
     estimating widths from character counts; estimates either overlap or leave gaps.
     Its caption sits in the manuscript like a figure's, as `Table n.` / `표 n.`.
+    When a cell wraps, break at a clause boundary (after a comma or semicolon) before
+    filling to the width, and fill words only inside a clause that alone is too wide.
+    The renderer checks every wrapped cell and prints a warning for a break in the middle
+    of a clause when a boundary was available, and for a last line holding a single short
+    word; fix the text or the column width until the table renders with no warning.
 12. **Hand the writer one page per document.** Build a figure sheet: every figure and
     table of the document on one page, each with buttons to copy the image, copy its
     absolute path and copy the caption. The writer pasting into a word processor should

@@ -204,7 +204,9 @@ make. None of them commits — the pre-commit review gate stays with the user.
   than two accents in one chart, on horizontal bars and on bars whose length axis starts
   above zero. Tests: `scripts/figcheck_test.py`.
 - Tables that go into the document are drawn as images by the same script, read from the
-  manuscript's Markdown tables (no vertical rules, text measured with the real font).
+  manuscript's Markdown tables (no vertical rules, text measured with the real font,
+  wrapped cells broken at clause boundaries with a warning for mid-clause breaks and
+  orphan words).
 - `scripts/figure_sheet.py` (stdlib Python): one self-contained HTML page per document
   with every figure and table in manuscript order and buttons that copy the image, its
   absolute path and its caption (number dropped by default). HTML because a PDF viewer
