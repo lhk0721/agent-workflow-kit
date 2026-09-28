@@ -84,5 +84,5 @@ Nothing to ask here — the owner set these at install. Read them so the explana
 - Korean writing skills: if the user writes Korean, mention that `ko-writing` (reports,
   docs, explanations) and `ko-ui-text` (screen strings) load themselves — no command to
   remember. Workflow skills (`issue-start`, `post-pr-cleanup`, `ui-evidence`,
-  `experiment-gate`, `session-handoff`) fire on plain requests such as "start issue" or
+  `experiment-gate`, `session-handoff`, `report-figures`) fire on plain requests such as "start issue" or
   "cleanup after merge", in either language. Details in `docs/agent-workflow/skills.md`.
