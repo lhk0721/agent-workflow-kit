@@ -51,7 +51,7 @@
 - Verification, measurement, background runs: `docs/agent-workflow/verification-rules.md`
 - Templates: `docs/agent-workflow/templates.md`
 - New member setup: `docs/agent-workflow/onboarding.md`
-- Skills (Korean writing, issue-start, post-pr-cleanup, ui-evidence, experiment-gate, session-handoff, report-figures): `docs/agent-workflow/skills.md`
+- Skills (Korean writing, issue-start, post-pr-cleanup, ui-evidence, experiment-gate, session-handoff, report-figures, readme-upkeep): `docs/agent-workflow/skills.md`
 - AGENTS.md size/staleness budget, where a fact belongs, and the hook layers: `docs/agent-workflow/context-maintenance.md`
 - Hooks are backstops at three points, not the rule source. `.githooks/` fires at commit; `.claude/hooks/` fires before a tool call — the only layer that can stop a destructive command — and at session start. Tripping one means the workflow was already violated — fix the order, not just the failure.
 <!-- kernel:end -->
