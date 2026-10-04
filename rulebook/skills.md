@@ -281,6 +281,36 @@ make. None of them commits — the pre-commit review gate stays with the user.
   caption prose (`ko-writing` §3); check layout — the rendered image is looked at.
 - Reads: no kit config; the script path is the argument.
 
+### readme-upkeep
+
+- Purpose: a README and release notes that state what the repo does today. The kit's
+  own README said "seven kit skills" while the installer wrote eight, kept the config
+  keys in a runbook and had no release notes until 2026-10-04; every missing fact lived
+  in the repo and had never been copied back.
+- Triggers: "README 개선", "리드미 갱신", "릴리스 노트", "changelog", "배지",
+  "update the README", "write a README", "release notes", "the README is out of date".
+- Procedure: inventory every count, name, path, default and version from its source
+  (version file, directory listing, config defaults, `--help`) → compare the layout with
+  the READMEs of this week's most-starred repositories (`scripts/trending_readmes.py`:
+  heading outlines and a device matrix — centred header, badges, alert note,
+  without/with table, folded details, agent install block) → the outline in SKILL.md →
+  figures through `report-figures` from one script, never a Mermaid block →
+  `CHANGELOG.md` in Keep a Changelog form, one entry per version with its PR and an
+  Upgrading note where an install needs a manual step → `scripts/readme_check.py` →
+  render through the GitHub markdown API and look at it at 1280 px and 390 px.
+- `scripts/readme_check.py` (stdlib Python): fails on a relative link or image whose
+  target is missing, an anchor that matches no heading (GitHub slugs, across files), a
+  reference link without its definition, and with `--online` a URL that does not
+  answer; warns on unused definitions, images without alt text and marketing words.
+  Tests: `scripts/readme_check_test.py`.
+- `scripts/trending_readmes.py` (stdlib Python): GitHub Trending for a period, each
+  README fetched and outlined, a device matrix across the repos. Tests on fixtures:
+  `scripts/trending_readmes_test.py`.
+- Does not: push, open the PR or publish a release; choose the license; write Korean
+  prose (`ko-writing`); draw figures (`report-figures`); verify the claims
+  (`verification-rules.md`).
+- Reads: `team_language` (which language the README is in).
+
 ## Repo-specific skills
 
 A repo's own skills live beside these under `.claude/skills/` and the kit never touches
@@ -292,8 +322,8 @@ with the triggers and the judgment calls, a script for the steps that must not v
 ## Ownership
 
 - `.claude/skills/ko-writing/**`, `ko-ui-text/**`, `issue-start/**`, `post-pr-cleanup/**`,
-  `ui-evidence/**`, `experiment-gate/**`, `session-handoff/**` and `report-figures/**` are
-  system-owned:
+  `ui-evidence/**`, `experiment-gate/**`, `session-handoff/**`, `report-figures/**` and
+  `readme-upkeep/**` are system-owned:
   `update` overwrites them. Don't edit in place — send the fix to the kit repo.
 - Any other directory under `.claude/skills/` is yours. The installer never touches it.
 - The config and glossary files above are repo-owned. `update` never touches them.

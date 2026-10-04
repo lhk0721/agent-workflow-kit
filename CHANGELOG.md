@@ -12,12 +12,33 @@ by hand; a version without it needs only the rerun.
 
 ## [Unreleased]
 
-### Docs
+Nothing yet.
 
-- README reorganised: what the kit catches, quick start, the hook and skill tables,
-  configuration keys and a documentation map. Release notes (this file) cover every
-  version since 0.1.0. Nothing installed into target repos changes.
-- The kit is released under the MIT License (`LICENSE`).
+## [0.2.13] — 2026-10-04
+
+### Added
+
+- New skill `readme-upkeep`: writes or updates a repository's README and release notes.
+  Facts come from their source of truth (version file, directory listing, config
+  defaults, `--help`); the layout is compared with the READMEs of this week's
+  most-starred repositories (`scripts/trending_readmes.py` — heading outlines and a
+  device matrix); figures go through `report-figures`; `scripts/readme_check.py` fails on
+  a dead relative link, an anchor that matches no heading or an undefined reference, and
+  warns on unused definitions, images without alt text and marketing words. The kit's own
+  README was the first case: it said "seven kit skills" while eight were installed.
+  ([#29])
+- `LICENSE`: the kit is released under the MIT License. ([#28])
+
+### Changed
+
+- README reorganised after the five most-starred repositories of the week: what the kit
+  catches, an agent-first quick start, hook, skill and configuration tables, a
+  documentation map ([#28]); then a section on Markdown as the document store (records,
+  key, indexes, the hot set in `AGENTS.md`) and three figures drawn by
+  `scripts/make_readme_figures.py` in the `report-figures` style — one work unit, the
+  three stores, where each hook fires — in place of the mermaid block ([#29]). Release
+  notes (this file) cover every version since 0.1.0.
+- `doctor` requires the ninth skill. ([#29])
 
 ## [0.2.12] — 2026-09-29
 
@@ -351,7 +372,8 @@ First release.
 - An installer that writes a version pin and a manifest; uninstall replays the manifest.
 - Agent-run runbooks: `SETUP.md` for repo owners, `onboarding.md` for new members.
 
-[Unreleased]: https://github.com/lhk0721/agent-workflow-kit/compare/1515056...main
+[Unreleased]: https://github.com/lhk0721/agent-workflow-kit/commits/main
+[0.2.13]: https://github.com/lhk0721/agent-workflow-kit/pull/29
 [0.2.12]: https://github.com/lhk0721/agent-workflow-kit/commit/1515056
 [0.2.11]: https://github.com/lhk0721/agent-workflow-kit/commit/f007b7b
 [0.2.9]: https://github.com/lhk0721/agent-workflow-kit/commit/c44d421
@@ -406,3 +428,5 @@ First release.
 [#25]: https://github.com/lhk0721/agent-workflow-kit/pull/25
 [#26]: https://github.com/lhk0721/agent-workflow-kit/pull/26
 [#27]: https://github.com/lhk0721/agent-workflow-kit/pull/27
+[#28]: https://github.com/lhk0721/agent-workflow-kit/pull/28
+[#29]: https://github.com/lhk0721/agent-workflow-kit/pull/29

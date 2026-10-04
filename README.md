@@ -2,11 +2,12 @@
 
 <h1>Agent Workflow Kit</h1>
 
-<p><strong>Rules, hooks and skills for repositories where Claude Code does the work.</strong></p>
+<p><strong>A workflow, a Markdown document store and backstops for repositories where Claude Code does the work.</strong></p>
 
 <p>
   <a href="#quick-start">Quick start</a> ·
-  <a href="#what-it-catches">What it catches</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#markdown-as-the-document-store">Document store</a> ·
   <a href="#skills">Skills</a> ·
   <a href="#configuration">Configuration</a> ·
   <a href="SETUP.md">Setup runbook</a> ·
@@ -23,41 +24,96 @@
 </div>
 
 > [!NOTE]
-> **New in 0.2:** eight skills (five workflow skills joined the two Korean writing
-> skills, and `report-figures` arrived in 0.2.6), repos without GitHub issues
-> (`issue_first: false`), and an install that keeps the rule files you already have.
-> See the [release notes](CHANGELOG.md).
+> **New in 0.2.13:** `readme-upkeep`, the ninth skill — it writes and updates a README
+> and its release notes, with the layout checked against this week's most-starred
+> repositories. 0.2 also brought five workflow skills, `report-figures`, repos without
+> GitHub issues (`issue_first: false`) and an install that keeps the rule files you
+> already have. See the [release notes](CHANGELOG.md).
 
-Agent Workflow Kit gives a repository a short rule kernel that Claude Code reads on every
-request, hooks that catch the moment a rule was skipped, and skills that carry the longer
-procedures. This repo is the single source: each target repo gets git-tracked copies
-through `install.mjs`, so a fix made here reaches every repo on its next update instead
-of drifting per copy.
+Agent Workflow Kit gives a repository three things: a workflow that ties every change to
+an issue, a branch and a document; a document store kept in Markdown and engineered so
+the agent's context stays small and true; and backstops that fire when a step was
+skipped. This repo is the single source: each target repo gets git-tracked copies through
+`install.mjs`, so a fix made here reaches every repo on its next update instead of
+drifting per copy.
 
 ## How it works
 
-| Rules | Backstops | Skills |
-| :--- | :--- | :--- |
-| `CLAUDE.md` + `AGENTS.md` kernel, gates first, about 50 lines | Git hooks at commit and push | Eight skills that load when the task matches |
-| Rulebook under `docs/agent-workflow/` | Claude Code hooks before a tool call and at session start | Scripts behind them, so a procedure is run, not recalled |
+One GitHub issue starts a work item, and its number names the branch, the worktree and
+the management document, so the three cannot disagree (Figure 1). Edits happen only in
+that worktree, and the document is open before the first edit. Every work unit then ends
+the same way: the agent shows the diff, the user approves, the agent writes the work-log
+section and commits — one commit per unit, never batched. A pull request is opened only
+when the user asks, and the last commit before the merge removes the pointer line from
+`AGENTS.md`, because a protected branch cannot be edited afterwards. `issue-start` runs
+the top row; `post-pr-cleanup` runs the last box. The dark edge marks the one step that
+belongs to the user.
 
-The rules say what to do. The hooks are backstops, not the rule source: tripping one
-means the workflow was already skipped, so fix the order, not just the failure. Each
-hook fires at a fixed point in a session:
+<p align="center">
+  <img src="docs/figures/f01_work_unit.png" width="860" alt="Figure 1. One work unit, from issue to cleanup.">
+  <br><sub>Figure 1. One work unit, from issue to cleanup.</sub>
+</p>
 
-```mermaid
-flowchart LR
-    S["<b>Session start</b><br/>memory-freshness<br/>agents-freshness<br/>repo-tools<br/>skill-listing"]
-    T["<b>Tool call</b><br/>guard-destructive<br/>require-skill"]
-    C["<b>git commit</b><br/>6 pre-commit checks<br/>+ repo-*.mjs<br/>commit-msg"]
-    P["<b>git push</b><br/>protected-push"]
-    S --> T --> C --> P
-```
+### Markdown as the document store
+
+What the agent knows comes from three stores with different lifetimes, and most of the
+kit exists to keep each fact in the right one (Figure 2). Treat the repository's
+Markdown as a document database: it has records, a key, indexes and a small hot set
+that is loaded on every request.
+
+- **Record.** One issue, one document, with a fixed shape from the template: relations,
+  summary, goal, done criteria, `Current State`, work log. Everything about the work
+  item is in that one file, and its assets sit in a folder named after it. There are no
+  joins to make.
+- **Key.** The branch name, the worktree directory and the document filename are the
+  same string, `<issue>-<type>-<desc>`. One key names the work wherever it appears.
+- **Indexes.** The Master Registry (`docs/issues/README.md`) has one row per record. The
+  notes index (`notes/README.md`) has one line per note, and that line is the
+  conclusion, not the topic, so the index reads as a list of findings. Hooks refuse a
+  record that lands without its index line.
+- **Hot set.** `AGENTS.md` ships in full on every request, before the agent has read a
+  line of code, so it holds only what must be known first: the rules, a three-line
+  Environment, and at most five pointers to active records — a path and one line each.
+  State the current fact there and link the history. `context-budget` warns when the
+  file grows, and `agents-freshness` flags a pointer whose branch is gone.
+- **Cache outside the repo.** Session memory loads every session, but no git hook can
+  reach it, so it links to notes and never restates them. `memory-freshness` checks its
+  claims against git at session start.
+
+The blue boxes in Figure 2 are the hooks that keep each store honest.
+
+<p align="center">
+  <img src="docs/figures/f02_context_store.png" width="860" alt="Figure 2. The three stores and the hook under each.">
+  <br><sub>Figure 2. The three stores and the hook under each.</sub>
+</p>
+
+| Store | Loads | Holds | Never | Kept honest by |
+| --- | --- | --- | --- | --- |
+| `AGENTS.md` | every request | rules, the Environment slot, at most 5 pointers | live status, inventories, history | `context-budget`, `agents-freshness` |
+| management docs, notes | on demand | facts, measurements, decisions and why, handoffs | rules the agent must know before it reads anything | `management-doc`, `registry-row`, `notes-index` |
+| session memory | every session | preferences, corrections, links to notes | numbers, paths, anything a note already holds | `memory-freshness` |
+
+### Backstops at four points
+
+The rules say what to do; the hooks catch the moment a rule was skipped, and tripping
+one means the order was already wrong — fix the order, not just the failure. Each hook
+fires at one of four fixed points (Figure 3). The Claude Code hooks see a command before
+the agent runs it, which makes `guard-destructive` the only layer that can stop
+`rm -rf` or a force push; a git hook fires at commit time, long after. `compact` marks
+the hook that runs after a context compaction, when Claude Code re-sends tools and
+agents but not the skill listing.
+
+<p align="center">
+  <img src="docs/figures/f03_hook_points.png" width="860" alt="Figure 3. Where each hook fires.">
+  <br><sub>Figure 3. Where each hook fires.</sub>
+</p>
 
 ## Is it for you?
 
 - Claude Code edits, commits and opens pull requests in your repository, often under
   `bypassPermissions`, where the only confirmation left is one a hook forces.
+- You want the agent's context engineered, not accumulated: a bounded `AGENTS.md`,
+  facts in documents the agent reads on demand, indexes that stay complete.
 - Several repos or teammates should follow the same rules, and a fix should reach all
   of them from one place.
 - Work runs in parallel worktrees, and each branch should stay tied to its issue and
@@ -76,14 +132,15 @@ flowchart LR
 | Merged branches and worktrees pile up, and a squash merge hides them from `git branch --merged`. | `post-pr-cleanup` classifies every worktree and branch and, after you confirm, removes only what provably landed. |
 | A new management doc lands without its registry row; a new note never gets indexed. | `registry-row` and `notes-index` block the commit until the index line is in. |
 | A Korean report is written in English and translated, and reads like machine output. | `ko-writing` writes from the facts in Korean, with a mechanical check and a cold reader per section. |
+| The README says "seven skills" while eight are installed, and nobody can tell what changed in the last release. | `readme-upkeep` pulls each count from its source, keeps `CHANGELOG.md` per version and fails on a dead link or anchor. |
 
 ## Quick start
 
 You need git, Node 20 or newer, and
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code); the agent installs Node
 for you if it is missing. `gh` is needed for the issue workflow. Python 3 runs the
-scripts of `ko-writing`, `report-figures` and `experiment-gate`, and `ui-evidence`
-drives a local Chrome.
+scripts of `ko-writing`, `report-figures`, `experiment-gate` and `readme-upkeep`, and
+`ui-evidence` drives a local Chrome.
 
 ### Install into your repo (owner, once per repo)
 
@@ -163,7 +220,7 @@ for the hooks during onboarding either way).
 | `docs/agent-workflow/` | The rulebook: git, documentation, verification, context maintenance, templates, onboarding, skills |
 | `.githooks/` | Commit and push backstops in Node: eight checks over three hooks, plus your own `checks/repo-*.mjs` |
 | `.claude/hooks/` | Claude Code hooks: two before a tool call, four at session start |
-| `.claude/skills/` | Eight skills |
+| `.claude/skills/` | Nine skills |
 | `agent-system.yaml` | Repo settings ([Configuration](#configuration)) |
 | `agent-system.lock.json` | Version pin, install manifest, and a hash per system-owned file so doctor can spot in-place edits |
 
@@ -198,8 +255,9 @@ Registered in `.claude/settings.json`; the installer replaces only its own entri
 
 ## Skills
 
-Installed to `.claude/skills/`; each loads itself when the task matches. Details and
-config files: [`rulebook/skills.md`](rulebook/skills.md).
+Installed to `.claude/skills/`; each loads itself when the task matches. A repo adds its
+own skills beside them, and update never touches those. Details and config files:
+[`rulebook/skills.md`](rulebook/skills.md).
 
 | Skill | Use it when |
 | --- | --- |
@@ -209,6 +267,7 @@ config files: [`rulebook/skills.md`](rulebook/skills.md).
 | [`ui-evidence`](skills/ui-evidence/SKILL.md) | A UI change needs proof. Screenshots at desktop and 390px phone width over headless Chrome, with an overflow verdict and console errors, as a Markdown table for the PR. |
 | [`experiment-gate`](skills/experiment-gate/SKILL.md) | A candidate (model, prompt, parameter) is compared with a baseline. Gate document first, paired bootstrap on the same items, a fixed win threshold. |
 | [`report-figures`](skills/report-figures/SKILL.md) | Figures or tables go into a report or PDF. One claim per figure, gray charts with one accent, a figure sheet with copy buttons. |
+| [`readme-upkeep`](skills/readme-upkeep/SKILL.md) | The README or release notes need writing or updating: a release, a new skill or hook, a stale table. Facts from the source of truth, layout from this week's most-starred repos, figures through `report-figures`, links and anchors checked by script, the page rendered and looked at. |
 | [`ko-writing`](skills/ko-writing/SKILL.md) | Korean prose: reports, docs, READMEs, release notes. Written from the facts in Korean, never translated, then checked. |
 | [`ko-ui-text`](skills/ko-ui-text/SKILL.md) | Korean screen strings: buttons, labels, errors, empty states. |
 
@@ -261,7 +320,7 @@ gate before every commit, protected branches, the push rule — stays on.
 
 | Scope | Files | Update touches? |
 | --- | --- | --- |
-| System-owned | `CLAUDE.md` (only when it starts with the kit marker comment), AGENTS.md kernel block, `docs/agent-workflow/*.md` that carry the kit marker, `.githooks/*` except `checks/repo-*.mjs`, `.claude/hooks/*`, the eight kit skills under `.claude/skills/` | Yes — overwritten |
+| System-owned | `CLAUDE.md` (only when it starts with the kit marker comment), AGENTS.md kernel block, `docs/agent-workflow/*.md` that carry the kit marker, `.githooks/*` except `checks/repo-*.mjs`, `.claude/hooks/*`, the nine kit skills under `.claude/skills/` | Yes — overwritten |
 | Repo-owned | `agent-system.yaml`, AGENTS.md slots, `docs/issues/**` (or `issues_root`), `<notes_dir>/**`, `docs/agent-workflow/repo-*.md`, `docs/agent-workflow/tools/*`, any `docs/agent-workflow/*.md` without the kit marker (adopt mode), `.githooks/checks/repo-*.mjs`, `.claude/guard.json`, `.claude/require-skill.json`, other `.claude/skills/*`, `ko-writing.config.md`, `ui-text.config.md`, `ui-text.glossary.md` | Never |
 | Personal | reply language & style in `~/.claude/CLAUDE.md`, session memory | Outside the system |
 
@@ -302,6 +361,15 @@ for t in skills/*/scripts/*_test.py; do python "$t"; done
 
 On Windows, set `PYTHONUTF8=1` first; without it the `experiment-gate` CLI test fails on
 a cp949 console.
+
+The figures in this README come from one script. After changing it, regenerate them,
+run the figure checker, and check the pages:
+
+```sh
+python scripts/make_readme_figures.py
+python skills/report-figures/scripts/figcheck.py scripts/make_readme_figures.py
+python skills/readme-upkeep/scripts/readme_check.py README.md CHANGELOG.md
+```
 
 A change that reaches target repos bumps [`VERSION`](VERSION) and adds its entry to
 [`CHANGELOG.md`](CHANGELOG.md) in the same pull request.

@@ -5,3 +5,5 @@ skills/**/*.py text eol=lf
 # Claude Code hooks and skill scripts are copied verbatim into target repos; keep LF like hooks/**
 claude-hooks/** text eol=lf
 skills/**/*.mjs text eol=lf
+# the kit-root figure script carries a shebang too
+scripts/**/*.py text eol=lf
