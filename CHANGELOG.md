@@ -12,7 +12,13 @@ by hand; a version without it needs only the rerun.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- README: "How it works" starts at the request gate (a question is answered in place; a
+  file change is tracked work), and two sections are new — git as the operating system
+  that runs several sessions at once (one live branch per issue, the user as scheduler,
+  the merge as join, commits as the channel between sessions), and context engineering:
+  what assembling the prompt from the stores buys over wording one message. ([#30])
 
 ## [0.2.13] — 2026-10-04
 
@@ -373,7 +379,7 @@ First release.
 - Agent-run runbooks: `SETUP.md` for repo owners, `onboarding.md` for new members.
 
 [Unreleased]: https://github.com/lhk0721/agent-workflow-kit/commits/main
-[0.2.13]: https://github.com/lhk0721/agent-workflow-kit/pull/29
+[0.2.13]: https://github.com/lhk0721/agent-workflow-kit/commit/44e264b
 [0.2.12]: https://github.com/lhk0721/agent-workflow-kit/commit/1515056
 [0.2.11]: https://github.com/lhk0721/agent-workflow-kit/commit/f007b7b
 [0.2.9]: https://github.com/lhk0721/agent-workflow-kit/commit/c44d421
@@ -430,3 +436,4 @@ First release.
 [#27]: https://github.com/lhk0721/agent-workflow-kit/pull/27
 [#28]: https://github.com/lhk0721/agent-workflow-kit/pull/28
 [#29]: https://github.com/lhk0721/agent-workflow-kit/pull/29
+[#30]: https://github.com/lhk0721/agent-workflow-kit/pull/30

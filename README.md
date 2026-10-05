@@ -8,6 +8,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#markdown-as-the-document-store">Document store</a> ·
+  <a href="#context-engineering">Context engineering</a> ·
   <a href="#skills">Skills</a> ·
   <a href="#configuration">Configuration</a> ·
   <a href="SETUP.md">Setup runbook</a> ·
@@ -26,18 +27,23 @@
 > [!NOTE]
 > **New in 0.2.13:** `readme-upkeep`, the ninth skill — it writes and updates a README
 > and its release notes, with the layout checked against this week's most-starred
-> repositories. 0.2 also brought five workflow skills, `report-figures`, repos without
-> GitHub issues (`issue_first: false`) and an install that keeps the rule files you
-> already have. See the [release notes](CHANGELOG.md).
+> repositories. Everything since 0.1 is in the [release notes](CHANGELOG.md).
 
-Agent Workflow Kit gives a repository three things: a workflow that ties every change to
-an issue, a branch and a document; a document store kept in Markdown and engineered so
-the agent's context stays small and true; and backstops that fire when a step was
-skipped. This repo is the single source: each target repo gets git-tracked copies through
-`install.mjs`, so a fix made here reaches every repo on its next update instead of
-drifting per copy.
+Agent Workflow Kit gives a repository three things: a workflow that turns a request into
+an issue, a branch and a document, and runs many of them at once on git; a document store
+kept in Markdown and engineered so the agent's context stays small and true; and
+backstops that fire when a step was skipped. This repo is the single source: each target
+repo gets git-tracked copies through `install.mjs`, so a fix made here reaches every repo
+on its next update instead of drifting per copy.
 
 ## How it works
+
+The agent sorts every request at the first file change. A question is answered in
+place. A request that will edit, create, move or delete a file is work, and work needs a
+tracked issue and a management document open before the first edit; "small fix" is not
+an exception (the Pre-Execution Gate in `AGENTS.md`). The issue is not there for
+GitHub's sake: it is the unit the kit can start, record, review and clean up, and with
+`issue_first: false` a note section plays the same part.
 
 One GitHub issue starts a work item, and its number names the branch, the worktree and
 the management document, so the three cannot disagree (Figure 1). Edits happen only in
@@ -53,6 +59,35 @@ belongs to the user.
   <img src="docs/figures/f01_work_unit.png" width="860" alt="Figure 1. One work unit, from issue to cleanup.">
   <br><sub>Figure 1. One work unit, from issue to cleanup.</sub>
 </p>
+
+### Git as the operating system
+
+A Claude Code session is a process, and git is what lets several run at once without
+touching each other. Each session lives in its own worktree on its own branch, both
+named after one issue, and nothing checks out another branch inside it. One issue has
+one live line of work: the `management-doc` check refuses a commit while a sibling
+branch of the same issue is ahead, and a protected branch takes changes through pull
+requests only.
+
+The user is the scheduler and the only orchestrator: they open the issues, start a
+session per issue in as many terminals as they like, approve each diff at the review
+gate, ask for the pull request and merge it — the join, after which `post-pr-cleanup`
+removes what provably landed. Sessions share no memory; they share the repository. What
+one session did, another reads from what it committed — the management document first —
+one `git fetch` away, on this machine or a teammate's. The one thing git cannot referee,
+what several sessions on one machine must not do at the same time, is etiquette kept in
+session memory: who holds the shared server, where the lock file is.
+
+| Operating system | The kit |
+| --- | --- |
+| process, address space | a session in its own worktree: one branch, one directory, no `git checkout` inside |
+| mutual exclusion | one live branch per issue (`management-doc`); protected branches take PRs only (`pre-push`) |
+| scheduler | the user: opens issues, starts sessions, approves at the review gate, asks for the PR |
+| spawn | `issue-start`: issue, branch, worktree, document and pointer in one script, from the remote base |
+| join | the merge; `post-pr-cleanup` removes what provably landed |
+| inter-process communication | commits: `Current State`, work logs, handoff notes, the registry, issue and PR threads |
+| process table | Recent Active Context in `AGENTS.md`: at most five pointers, one per work item in flight |
+| another host | a teammate's clone: the same kernel, hooks and rules through `onboarding`; a rule change arrives with the next `git fetch` |
 
 ### Markdown as the document store
 
@@ -93,6 +128,29 @@ The blue boxes in Figure 2 are the hooks that keep each store honest.
 | management docs, notes | on demand | facts, measurements, decisions and why, handoffs | rules the agent must know before it reads anything | `management-doc`, `registry-row`, `notes-index` |
 | session memory | every session | preferences, corrections, links to notes | numbers, paths, anything a note already holds | `memory-freshness` |
 
+### Context engineering
+
+Prompt engineering works on one message, the words typed for one request. The kit works
+one level up, on what the model is given before that message, in what shape, on every
+request. The context of a request is assembled from the three stores by rules the
+repository owns: the kernel and the repo slots of `AGENTS.md` are the standing prompt,
+the pointer lines are the retrieval keys, the record opened before the first edit is the
+working set, and the index lines are what can be scanned without opening a file.
+Each part has a fixed shape — the template's sections, a path and one line per pointer,
+a headline per index line, three lines of Environment — so changing a shape changes the
+prompt of every later request at once, and a new session reads the same slots in the
+same order as the last one.
+
+That buys four things a single well-written prompt cannot. The context stays small: the
+hot set is bounded and history sits behind links, so the baseline cost of a request does
+not grow with the number of records. It stays true: a stale line in context is acted on
+without being checked, so hooks check it instead — the pointer whose branch merged, the
+memory claim git contradicts, the record without an index line. It outlives the session:
+a compaction or a dropped session loses the conversation, not the record, and the next
+session resumes from `Current State`. And the user's prompts shrink, because the facts a
+request used to carry — which branch, what was decided, what is confirmed — are already
+in the window or one pointer away.
+
 ### Backstops at four points
 
 The rules say what to do; the hooks catch the moment a rule was skipped, and tripping
@@ -116,8 +174,8 @@ agents but not the skill listing.
   facts in documents the agent reads on demand, indexes that stay complete.
 - Several repos or teammates should follow the same rules, and a fix should reach all
   of them from one place.
-- Work runs in parallel worktrees, and each branch should stay tied to its issue and
-  its management document.
+- Several sessions run at once, in several terminals or on teammates' machines, and
+  each must stay tied to its issue and its management document.
 - Your team writes Korean reports or UI text and does not want them to read like
   translations. The Korean skills and their gate act only on Korean text.
 
@@ -129,6 +187,7 @@ agents but not the skill listing.
 | `AGENTS.md` grows by appending, and a pointer to a branch merged months ago keeps steering the agent. | `context-budget` (pre-commit) and `agents-freshness` (session start) flag the size and the stale pointer. |
 | Session memory still says a branch is "unpushed" long after it merged. | `memory-freshness` checks each such claim against git at session start and quotes the line. |
 | After a context compaction, a skill that was never invoked disappears from the agent's view. | `skill-listing` hands the listing back after the compaction; `require-skill` blocks a Korean edit until the writing skill is loaded. |
+| Two sessions commit to the same issue from two branches, and the work forks. | `management-doc` refuses the commit on the branch that fell behind and names the live one. |
 | Merged branches and worktrees pile up, and a squash merge hides them from `git branch --merged`. | `post-pr-cleanup` classifies every worktree and branch and, after you confirm, removes only what provably landed. |
 | A new management doc lands without its registry row; a new note never gets indexed. | `registry-row` and `notes-index` block the commit until the index line is in. |
 | A Korean report is written in English and translated, and reads like machine output. | `ko-writing` writes from the facts in Korean, with a mechanical check and a cold reader per section. |
@@ -137,10 +196,11 @@ agents but not the skill listing.
 ## Quick start
 
 You need git, Node 20 or newer, and
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code); the agent installs Node
-for you if it is missing. `gh` is needed for the issue workflow. Python 3 runs the
-scripts of `ko-writing`, `report-figures`, `experiment-gate` and `readme-upkeep`, and
-`ui-evidence` drives a local Chrome.
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+(`npm install -g @anthropic-ai/claude-code`, or the native installer on that page); the
+agent installs Node for you if it is missing. `gh` is needed for the issue workflow.
+Python 3 runs the scripts of `ko-writing`, `report-figures`, `experiment-gate` and
+`readme-upkeep`, and `ui-evidence` drives a local Chrome.
 
 ### Install into your repo (owner, once per repo)
 
@@ -206,11 +266,6 @@ The agent follows `docs/agent-workflow/onboarding.md`: it checks or installs Nod
 `gh`, enables the hooks for your clone (`core.hooksPath` is per clone), asks which
 language and style you want replies in, runs doctor, and walks you through the two
 gates.
-
-First time with Claude Code? Install it first from
-https://docs.anthropic.com/en/docs/claude-code (`npm install -g @anthropic-ai/claude-code`,
-or the native installer on that page if you don't have Node yet; the agent installs Node
-for the hooks during onboarding either way).
 
 ## What a repo gets
 
@@ -326,6 +381,9 @@ gate before every commit, protected branches, the push rule — stays on.
 
 ## What it is not
 
+- **Not a GitHub tool.** Issues, branches and pull requests are the ledger; the subject
+  is the LLM session — what it reads, what it may do, what it leaves behind. With
+  `issue_first: false` the ledger is a note section and the rest stays on.
 - **Not branch protection.** The server setting is the source of truth; `pre-push` is
   its local backstop. Set GitHub branch protection to match `protected_branches`.
 - **Not a per-repo fork.** Target repos get git-tracked copies that update overwrites.
