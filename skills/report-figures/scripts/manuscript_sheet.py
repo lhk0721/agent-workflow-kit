@@ -17,7 +17,8 @@ The page
                PNG. Its caption line copies the caption (number dropped unless
                --keep-number), its path line the absolute path. Copied text is plain, so a
                word processor applies its template style; tables also carry HTML so they
-               paste as tables. The "요점" / "본문에 쓸 것" work lines are never copied.
+               paste as tables, each cell with its column's Markdown alignment. The
+               "요점" / "본문에 쓸 것" work lines are never copied.
   Select mode  click to copy a selector — file, line and section for text; for a figure
                with an SVG next to its PNG, the matplotlib element under the pointer (text,
                bar, line, dot, tick, axis, legend, plot area) with its id path, text and
@@ -133,6 +134,15 @@ def _cells(row: str) -> list[str]:
     return [c.strip() for c in row.split("|")]
 
 
+def _aligns(sep: str) -> list[str | None]:
+    """Column alignment from a table's separator row: ``:---:`` center, ``---:`` right, ``:---`` left."""
+    out: list[str | None] = []
+    for c in _cells(sep):
+        left, right = c.startswith(":"), c.endswith(":")
+        out.append("center" if left and right else "right" if right else "left" if left else None)
+    return out
+
+
 def parse(text: str, bases: list[Path]) -> list[dict]:
     lines = text.splitlines()
     blocks: list[dict] = []
@@ -176,8 +186,10 @@ def parse(text: str, bases: list[Path]) -> list[dict]:
                 rows.append(lines[i])
                 i += 1
             head = _cells(rows[0])
+            sep = rows[1].strip() if len(rows) > 1 else ""
+            align = _aligns(sep) if TABLE_SEP_RE.match(sep) else []
             body_rows = [_cells(r) for r in rows[1:] if not TABLE_SEP_RE.match(r.strip())]
-            blocks.append({"kind": "table", "head": head, "rows": body_rows, "line": start})
+            blocks.append({"kind": "table", "head": head, "rows": body_rows, "align": align, "line": start})
             continue
         if LIST_RE.match(ln):
             items: list[dict] = []
@@ -225,8 +237,16 @@ def plain(block: dict) -> str:
 
 def table_html(block: dict, anchors: dict[str, str] | None = None, fmt=None) -> str:
     fmt = fmt or (lambda c: inline_html(c, anchors))
-    head = "".join(f"<th>{fmt(c)}</th>" for c in block["head"])
-    rows = "".join("<tr>" + "".join(f"<td>{fmt(c)}</td>" for c in r) + "</tr>" for r in block["rows"])
+    align = block.get("align") or []
+
+    def cell(tag: str, c: str, j: int) -> str:
+        # inline style, so a table pasted into a word processor keeps the column alignment
+        a = align[j] if j < len(align) else None
+        style = f' style="text-align:{a}"' if a else ""
+        return f"<{tag}{style}>{fmt(c)}</{tag}>"
+
+    head = "".join(cell("th", c, j) for j, c in enumerate(block["head"]))
+    rows = "".join("<tr>" + "".join(cell("td", c, j) for j, c in enumerate(r)) + "</tr>" for r in block["rows"])
     return f"<table><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table>"
 
 
@@ -394,7 +414,7 @@ TEMPLATE = r"""<!doctype html>
   blockquote { margin: 0 0 16px; padding-left: 12px; border-left: 3px solid var(--line); color: var(--ink2); }
   ul, ol { margin: 0 0 16px; padding-left: 1.4em; }
   .tbl { margin: 0 0 16px; overflow-x: auto; }
-  table { border-collapse: collapse; font-size: 14px; }
+  table { border-collapse: collapse; font-size: 14px; margin: 0 auto; }
   th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; vertical-align: top; }
   th { border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); }
   .fig { margin: 32px 0; }

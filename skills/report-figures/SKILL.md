@@ -175,6 +175,9 @@ deadline. Every figure was accurate and most were redrawn anyway:
      lines copy the caption and the absolute path. Text is copied plain so the word
      processor applies its template style; tables also carry HTML. Claim and in-text
      lines are shown, never copied.
+   - **Tables** keep the column alignment of the Markdown separator row (`:---:` center,
+     `---:` right, `:---` left) on the page and in the copied HTML, and sit centered on
+     the page like figures. A column with plain `---` stays left-aligned.
    - **Select mode.** Clicking copies a selector: file, line and section path for text;
      for a figure, the matplotlib element under the pointer (text, bar or box, line, grid
      line, single point, tick, axis, legend, plot area) with its SVG id path, its text and

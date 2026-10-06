@@ -15,7 +15,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from manuscript_sheet import apply_edit, build, inline_html, inline_plain, main, make_server, parse, plain  # noqa: E402
+from manuscript_sheet import (  # noqa: E402
+    apply_edit, build, inline_html, inline_plain, main, make_server, parse, plain, table_html,
+)
 
 # 1x1 white PNG
 PNG = base64.b64decode(
@@ -140,6 +142,21 @@ class ManuscriptSheetTest(unittest.TestCase):
         out = self.dir / "out.html"
         self.assertEqual(main([str(self.md), "--out", str(out)]), 1)
         self.assertIn("파일 없음", out.read_text(encoding="utf-8"))
+
+    def test_table_keeps_column_alignment(self):
+        self.assertEqual(self.blocks[4]["align"], [None, None])
+        self.assertIn("<th>항목</th>", table_html(self.blocks[4]))
+        md = "| a | b | c | d |\n|:---:| ---: | :--- | --- |\n| 1 | 2 | 3 | 4 |\n"
+        table = parse(md, [self.dir])[0]
+        self.assertEqual(table["align"], ["center", "right", "left", None])
+        self.assertEqual(table["rows"], [["1", "2", "3", "4"]])
+        self.blocks = [table]
+        _, _, data = self.page()
+        for h in (table_html(table), data[0]["html"]):  # shown on the page and copied
+            self.assertIn('<th style="text-align:center">a</th>', h)
+            self.assertIn('<td style="text-align:right">2</td>', h)
+            self.assertIn('<td style="text-align:left">3</td>', h)
+            self.assertIn("<td>4</td>", h)
 
     def test_block_line_ranges(self):
         spans = [(b["kind"], b["line"], b["end"]) for b in self.blocks]
