@@ -24,6 +24,11 @@ by hand; a version without it needs only the rerun.
   once, when the text is settled and the user asks. From a session that rebuilt the
   report's hwpx and PDF after each of four cover-summary revisions and overwrote the
   hwpx mid-export, stalling the word processor. ([#31])
+- `report-figures` manuscript page: tables keep the column alignment of the Markdown
+  separator row (`:---:` center, `---:` right, `:---` left), both on the page and in the
+  HTML a copied table carries, and sit centered on the page like figures. Before, every
+  cell was drawn left-aligned and the alignment was dropped, so a report whose tables are
+  all centered showed and pasted them left-aligned. ([#32])
 
 ## [0.2.13] — 2026-10-04
 
@@ -443,3 +448,4 @@ First release.
 [#29]: https://github.com/lhk0721/agent-workflow-kit/pull/29
 [#30]: https://github.com/lhk0721/agent-workflow-kit/pull/30
 [#31]: https://github.com/lhk0721/agent-workflow-kit/pull/31
+[#32]: https://github.com/lhk0721/agent-workflow-kit/pull/32
