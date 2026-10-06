@@ -29,6 +29,12 @@ by hand; a version without it needs only the rerun.
   HTML a copied table carries, and sit centered on the page like figures. Before, every
   cell was drawn left-aligned and the alignment was dropped, so a report whose tables are
   all centered showed and pasted them left-aligned. ([#32])
+- `report-figures` manuscript page: the skill says which copy `--serve` should show, the
+  main checkout's manuscript from a detached process, and that the main checkout pulls
+  right after each merge so the page shows the merged text. From a report whose page kept
+  showing the old cover summary after two merges until the main checkout was pulled, and
+  a server started as a session's background job that stopped with that session's
+  `/clear`. ([#33])
 
 ## [0.2.13] — 2026-10-04
 
@@ -449,3 +455,4 @@ First release.
 [#30]: https://github.com/lhk0721/agent-workflow-kit/pull/30
 [#31]: https://github.com/lhk0721/agent-workflow-kit/pull/31
 [#32]: https://github.com/lhk0721/agent-workflow-kit/pull/32
+[#33]: https://github.com/lhk0721/agent-workflow-kit/pull/33

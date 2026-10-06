@@ -191,6 +191,17 @@ deadline. Every figure was accurate and most were redrawn anyway:
      manuscript may be edited by another person or agent at the same time), so the
      reader copies their text and reloads instead of overwriting. Any change to the
      Markdown or a figure file reloads the page, so edits made in an editor show at once.
+   - **Which copy to serve.** Serve the manuscript in the main checkout, not in a work
+     branch's worktree, which is removed after its merge. A change made on a branch shows
+     on the page only after the branch merges and the main checkout pulls it
+     (`git pull --ff-only` there); the page then reloads by itself. Pull right after each
+     merge, from a shell or session in the main checkout: worktree isolation refuses a
+     session's git commands outside its own worktree, `git -C <main>` included. Start the
+     server as a detached process (`Start-Process` on Windows, `nohup ... &` elsewhere),
+     not as a session's background job, which ends with the session or its `/clear` and
+     takes the page down. Before starting one, check whether a server already listens on
+     the port. Edit mode then writes into the main checkout's working tree: move such an
+     edit to a branch before the next pull, which stops when it would overwrite it.
 
    Element-level selection needs an SVG next to each PNG. Save both from the plotting
    script, with stable ids and no date:
