@@ -19,6 +19,11 @@ by hand; a version without it needs only the rerun.
   that runs several sessions at once (one live branch per issue, the user as scheduler,
   the merge as join, commits as the channel between sessions), and context engineering:
   what assembling the prompt from the stores buys over wording one message. ([#30])
+- `ko-writing`: while a draft is going through the check and cold-reader cycle, the
+  files generated from it (hwpx, docx, PDF) are not rebuilt per revision; they are built
+  once, when the text is settled and the user asks. From a session that rebuilt the
+  report's hwpx and PDF after each of four cover-summary revisions and overwrote the
+  hwpx mid-export, stalling the word processor. ([#31])
 
 ## [0.2.13] — 2026-10-04
 
@@ -437,3 +442,4 @@ First release.
 [#28]: https://github.com/lhk0721/agent-workflow-kit/pull/28
 [#29]: https://github.com/lhk0721/agent-workflow-kit/pull/29
 [#30]: https://github.com/lhk0721/agent-workflow-kit/pull/30
+[#31]: https://github.com/lhk0721/agent-workflow-kit/pull/31
