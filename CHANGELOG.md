@@ -50,6 +50,12 @@ by hand; a version without it needs only the rerun.
   showing the old cover summary after two merges until the main checkout was pulled, and
   a server started as a session's background job that stopped with that session's
   `/clear`. ([#33])
+- `report-figures` manuscript page: a table drawn as an image (`표 n` / `Table n`) is
+  shown no wider than it is on paper, read from the SVG's width or the PNG's pixel size
+  and dpi, and stays centered; figures still fill the column. Before, every image was
+  stretched to the column, so the eleven narrow tables of a report, 2 to 5.6 inches wide,
+  came out 1.5 to 4.2 times larger than the full-width ones, type included, while the
+  paper copy was fine. ([#35])
 
 ## [0.2.13] — 2026-10-04
 
@@ -472,3 +478,4 @@ First release.
 [#32]: https://github.com/lhk0721/agent-workflow-kit/pull/32
 [#33]: https://github.com/lhk0721/agent-workflow-kit/pull/33
 [#34]: https://github.com/lhk0721/agent-workflow-kit/pull/34
+[#35]: https://github.com/lhk0721/agent-workflow-kit/pull/35

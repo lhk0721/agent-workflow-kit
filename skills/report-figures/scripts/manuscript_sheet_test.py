@@ -137,6 +137,19 @@ class ManuscriptSheetTest(unittest.TestCase):
         self.assertIn("<!-- 라벨 -->", page)   # text of each label stays for selectors
         self.assertIn("f01.svg", data[3]["sel"])
 
+    def test_table_image_is_no_wider_than_on_paper(self):
+        md = self.md.read_text(encoding="utf-8").replace("[그림 1 자리]", "[표 1 자리]").replace("그림 1. 첫 그림.", "표 1. 첫 표.")
+        svg = self.dir / "figures" / "f01.svg"
+        svg.write_text('<svg width="148pt" height="5pt" viewBox="0 0 148 5" xmlns="http://www.w3.org/2000/svg">'
+                       '<g id="figure_1"/></svg>', encoding="utf-8")
+        page, _ = build(parse(md, [self.dir]), "T", "report.md", "ko", keep_number=False, last_line=30)
+        self.assertIn('<svg style="max-width:197px"', page)   # 148pt is 1.97in, 197 CSS px
+        svg.unlink()
+        page, _ = build(parse(md, [self.dir]), "T", "report.md", "ko", keep_number=False, last_line=30)
+        self.assertIn('<img style="max-width:1px"', page)     # 1x1 PNG without a pHYs chunk: 96 dpi
+        page, _, _ = self.page()                                # a figure still fills the column
+        self.assertNotIn('style="max-width', page)
+
     def test_missing_figure_still_writes_page(self):
         (self.dir / "figures" / "f01.png").unlink()
         out = self.dir / "out.html"
