@@ -34,6 +34,10 @@ The page
 the viewport; plain scrolling is never adjusted. Images are
 embedded, so the written page opens from disk. Exit 1 if a figure file is missing (the
 page is still written, with a placeholder).
+
+A table drawn as an image ("표 N" / "Table N") is shown no wider than it is on paper, read
+from the SVG's width or the PNG's pixel size and dpi, so a narrow table keeps the type size
+of the wide ones; figures fill the column.
 """
 
 from __future__ import annotations
@@ -266,6 +270,48 @@ def inline_svg(path: Path, prefix: str) -> str:
     return head + s[head_end:]
 
 
+SVG_WIDTH_RE = re.compile(r'\swidth="\s*([0-9.]+)\s*(pt|px|in|mm|cm)?\s*"')
+CSS_PX = {"px": 1.0, "pt": 96 / 72, "in": 96.0, "mm": 96 / 25.4, "cm": 96 / 2.54}
+
+
+def paper_width_px(path: Path) -> float | None:
+    """The width the image has on paper, in CSS px: an SVG's width attribute, or a PNG's
+    pixel width over its pHYs density (96 dpi when the chunk is absent). None when the file
+    cannot be read that way."""
+    try:
+        suffix = path.suffix.lower()
+        if suffix == ".svg":
+            s = path.read_text(encoding="utf-8")
+            head = s[s.index("<svg"):]
+            m = SVG_WIDTH_RE.search(head[:head.index(">")])
+            return float(m.group(1)) * CSS_PX[m.group(2) or "px"] if m else None
+        if suffix == ".png":
+            data = path.read_bytes()
+            if data[:8] != b"\x89PNG\r\n\x1a\n":
+                return None
+            width, dpi, pos = int.from_bytes(data[16:20], "big"), 96.0, 8
+            while pos + 8 <= len(data):
+                length, kind = int.from_bytes(data[pos:pos + 4], "big"), data[pos + 4:pos + 8]
+                if kind == b"pHYs" and data[pos + 16] == 1:   # unit 1 = pixels per metre
+                    dpi = int.from_bytes(data[pos + 8:pos + 12], "big") * 0.0254
+                if kind in (b"pHYs", b"IDAT"):
+                    break
+                pos += 12 + length
+            return width / dpi * 96
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _cap(markup: str, width: float | None) -> str:
+    """A table drawn as an image is shown no wider than it is on paper. Stretched to the
+    column like a figure, a narrow table's type comes out larger than the other tables'."""
+    if width is None:
+        return markup
+    tag = "<svg" if markup.startswith("<svg") else "<img"
+    return markup.replace(tag, f'{tag} style="max-width:{width:.0f}px"', 1)
+
+
 def _anchor(label: str) -> str:
     return "fig-" + label.replace(" ", "")
 
@@ -323,6 +369,8 @@ def build(blocks: list[dict], title: str, source: str, lang: str, keep_number: b
                 art = f'<img src="data:{MIME.get(p.suffix.lower(), "image/png")};base64,{base64.b64encode(p.read_bytes()).decode("ascii")}" alt="{html.escape(b["caption"])}">'
             else:
                 art = f'<div class="missing">{t["missing"]}</div>'
+            if label.startswith(("표", "Table")) and (svg.is_file() or p.is_file()):
+                art = _cap(art, paper_width_px(svg if svg.is_file() else p))
             if p.is_file():
                 if p.suffix.lower() == ".png":
                     item["png"] = base64.b64encode(p.read_bytes()).decode("ascii")
