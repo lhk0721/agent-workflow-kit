@@ -15,7 +15,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from check import (  # noqa: E402
     check_demonstratives, check_facts, check_glossary, check_legend_placement,
-    classify_lines, dem_stem,
+    check_shorten_signals, classify_lines, dem_stem, paragraphs,
 )
 
 MANUSCRIPT = """
@@ -118,6 +118,50 @@ class LegendTest(unittest.TestCase):
         self.assertEqual(check_legend_placement(lines_of(text)), [])
 
 
+LONG_DRAFT = """
+## 2. 모델
+
+### 2-1. 구조
+
+결합 검출기는 두 부분을 묶는다(1-1). 본 시험은 학습과 같은 생성기로 만들어 실제 성능이 아니다.
+문턱을 정한 방법은 2-2에 적는다. 2026-10-03에 처음 쟀고 2026-10-05에 다시 쟀다.
+
+### 2-2. 평가
+
+본 시험은 학습과 같은 생성기로 만들어 실제 성능이 아니다. 이 값은 0.809이고 기준선은 0.738이다.
+오경보를 같게 맞춘 비교는 하지 않았다. 지름 8~24px 띠는 세지 않았다.
+
+### 2-3. 결과
+
+본 시험은 학습과 같은 생성기로 만들어 실제 성능이 아니다. 3호기의 하락 원인은 가르지 않았다.
+합성 평가의 AP는 0.694에서 0.970으로 올랐다(2-3~2-5).
+
+### 2-4. 한계
+
+본 시험은 학습과 같은 생성기로 만들어 실제 성능이 아니다. 실제 비금속 이물은 재지 못했다.
+"""
+
+
+class ShortenSignalTest(unittest.TestCase):
+    def test_signals(self):
+        lines = lines_of(LONG_DRAFT)
+        s = check_shorten_signals(lines, paragraphs(lines))
+        refs = [r for _, r in s["refs"]]
+        # "(1-1)", "2-2에", "2-3~2-5" 안의 둘. 날짜의 "10-03"과 "8~24px"는 아니다
+        self.assertEqual(sorted(refs), ["1-1", "2-2", "2-3", "2-5"])
+        self.assertEqual([d for _, d in s["dates"]], ["2026-10-03", "2026-10-05"])
+        # "하지 않았다", "세지 않았다", "가르지 않았다", "재지 못했다"
+        self.assertEqual(len(s["unmeasured"]), 4)
+        self.assertGreater(s["numbers"], 10)
+        # "실제 성능이 아니다" 네 문장이 단서 문장이다
+        self.assertEqual(len(s["hedges"]), 4)
+        # 같은 단서 문장이 네 문단에 되풀이된다
+        self.assertTrue(s["repeats"])
+        phrase, paras_ = s["repeats"][0]
+        self.assertIn("같은생성기로만들어", phrase)
+        self.assertEqual(len(paras_), 4)
+
+
 class LedgerTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -168,7 +212,7 @@ class LedgerTest(unittest.TestCase):
                                         capture_output=True, text=True, encoding="utf-8", env=env)
         plain = run()
         self.assertEqual(plain.returncode, 0, plain.stderr)
-        for h in ("## 1. 금지 패턴", "## 8.", "## 9. 지시어", "## 10.", "## 11.", "## 12."):
+        for h in ("## 1. 금지 패턴", "## 8.", "## 9. 지시어", "## 10.", "## 11.", "## 12.", "## 13. 줄이기 신호"):
             self.assertIn(h, plain.stdout)
         self.assertIn("건너뜀 (--glossary", plain.stdout)
         full = run("--glossary", str(self.terms), "--facts", str(self.facts))
