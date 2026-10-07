@@ -323,7 +323,7 @@ own skills beside them, and update never touches those. Details and config files
 | [`experiment-gate`](skills/experiment-gate/SKILL.md) | A candidate (model, prompt, parameter) is compared with a baseline. Gate document first, paired bootstrap on the same items, a fixed win threshold. |
 | [`report-figures`](skills/report-figures/SKILL.md) | Figures or tables go into a report or PDF. One claim per figure, gray charts with one accent, a figure sheet with copy buttons. |
 | [`readme-upkeep`](skills/readme-upkeep/SKILL.md) | The README or release notes need writing or updating: a release, a new skill or hook, a stale table. Facts from the source of truth, layout from this week's most-starred repos, figures through `report-figures`, links and anchors checked by script, the page rendered and looked at. |
-| [`ko-writing`](skills/ko-writing/SKILL.md) | Korean prose: reports, docs, READMEs, release notes. Written from the facts in Korean, never translated, then checked. |
+| [`ko-writing`](skills/ko-writing/SKILL.md) | Korean prose: reports, docs, READMEs, release notes. Written from the facts in Korean, never translated, then checked. A finished draft that is too long is cut by six removal rules, one chapter per branch, and read once more by a cold reader. |
 | [`ko-ui-text`](skills/ko-ui-text/SKILL.md) | Korean screen strings: buttons, labels, errors, empty states. |
 
 ## Configuration

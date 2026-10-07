@@ -12,6 +12,21 @@ by hand; a version without it needs only the rerun.
 
 ## [Unreleased]
 
+### Added
+
+- `ko-writing`: a **shorten** mode for a finished draft that is too long to read. It sorts
+  facts instead of polishing sentences: a per-chapter length table against the rubric,
+  six kinds of removable text (procedure longer than its result, work history and dates,
+  a caveat repeated per section, number density, a maze of section pointers and
+  intermediate names, rejected work given the weight of adopted work), a per-section
+  keep/drop table, recommendations on every open decision, then one chapter per branch
+  with the checks and a cold reader each, pointer repair in the same commit, and one cold
+  read of the whole text at the end. `references/shortening.md` carries the rules, the
+  keep list and before/after pairs; `check.py` item 13 counts section pointers, dates,
+  "did not measure" sentences, hedge sentences, numbers per 1,000 characters and phrases
+  repeated verbatim across four or more paragraphs. From a 93,574-character contest report the user could not
+  read, cut to 51,457 over five pull requests. ([#34])
+
 ### Changed
 
 - README: "How it works" starts at the request gate (a question is answered in place; a
@@ -456,3 +471,4 @@ First release.
 [#31]: https://github.com/lhk0721/agent-workflow-kit/pull/31
 [#32]: https://github.com/lhk0721/agent-workflow-kit/pull/32
 [#33]: https://github.com/lhk0721/agent-workflow-kit/pull/33
+[#34]: https://github.com/lhk0721/agent-workflow-kit/pull/34

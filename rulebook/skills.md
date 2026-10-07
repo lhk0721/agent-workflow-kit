@@ -113,6 +113,31 @@ Skill changes, in this skill and in every kit skill, cite defects observed in re
 output. A procedure written from an agent's description of how it works is not evidence;
 the v0.1.14 procedure above is the example.
 
+### ko-writing: shortening a finished draft
+
+A 93,000-character contest report, written with the skill chapter by chapter, passed the
+checks and the user still could not read it ("도저히 읽히지도 않고 이해도 안 가서 더 못
+읽겠어"). The sentences were fine; the draft carried nearly every fact from the working
+notes, and more than half of them are facts an evaluator never scores. So the skill has a
+fifth mode, **shorten**, that sorts facts rather than polishing sentences. It counts six
+kinds of removable text (procedure longer than its result; work history and dates; the same
+caveat repeated per section; number density; a maze of section pointers and intermediate
+names; rejected work given the weight of adopted work), puts a per-chapter length table and
+a per-section keep/drop table in front of the user with a recommendation on every open
+decision, then cuts one chapter per branch (figure and table numbers are global), runs the
+checks and a cold reader per chapter, fixes in the same commit every sentence elsewhere
+that pointed at removed text, and ends with one cold read of the whole manuscript. The
+report went from 93,574 to 51,457 characters over five pull requests; each cold-reader
+round asked back one sentence of method detail per section, which is where the cut stops.
+`check.py` item 13 counts the signals (section pointers, dates, "did not measure"
+sentences, hedge sentences, numbers per 1,000 characters, phrases repeated verbatim across
+four or more paragraphs)
+so the diagnosis starts from numbers. `references/shortening.md` holds the six kinds with
+before/after pairs, the keep list (rubric items, what a rule says to report, the one-line
+reason a rejected method was rejected, every number's pair) and the traps (a "표 n"
+reference broken across a line wrap, particles after renumbered figures, a decision asked
+without a recommendation).
+
 ### Boundary between the two
 
 Screen text and documents pull in opposite directions: a doc's default ending is the

@@ -32,6 +32,10 @@
  12. 사실 대장 대조(--facts 파일): 대상 이름 바로 뒤의 숫자가 대장 값과 다른 자리,
      한 숫자가 두 대상에 붙은 자리, 표본이 다른 숫자가 한 문단에 나란히 나온 자리,
      대장에 없는 소수
+ 13. 줄이기 신호(경고): 절 참조 "(1-3)"의 수, 날짜(YYYY-MM-DD)의 수, "~하지 않았다"로
+     끝나는 미측정 문장의 수, "~이 아니다"나 "~일 수 있다" 같은 단서 문장의 수, 본문
+     1,000자당 숫자 수, 글자 그대로 네 문단 넘게 되풀이되는 구절.
+     긴 원고를 줄일 때 어느 유형이 많은지 보는 값이다(references/shortening.md)
 대장 형식은 references/ledgers.md, 템플릿은 assets/의 두 ledger 파일이다.
 """
 import argparse
@@ -555,6 +559,88 @@ def check_facts(lines, path):
     return out
 
 
+# 13. 줄이기 신호 ---------------------------------------------------------------
+# 긴 원고를 줄일 때 어느 유형이 많은지 센다. 93,000자 결과보고서 원고에서 절 참조 143곳,
+# 날짜 11곳, "~하지 않았다" 꼴 미측정 고백 37문장, 같은 단서 문장 12번 되풀이가 나왔고,
+# 그 원고를 사용자는 읽을 수 없다고 했다. 전부 경고이고 1,000자당 비율로 장끼리 견준다.
+# 절 참조: "(1-3)", "1-6의", "2-3~2-5". 앞뒤에 숫자, 점, 빼기가 붙으면 날짜나 범위다
+SECTION_REF = re.compile(r"(?<![\d.\-])\d{1,2}-\d{1,2}(?![\d.\-]|px|mm)")
+# 한글은 \w에 들어 \b가 "2026-10-03에"의 끝에서 막힌다. 앞뒤가 숫자가 아니면 날짜로 본다
+DATE = re.compile(r"(?<!\d)(?:19|20)\d{2}-\d{2}-\d{2}(?!\d)")
+# 미측정 고백: 문장이 "~하지 않았다", "~하지 못했다"로 끝남. 현재형("~하지 않는다")은 규칙이라 세지 않는다
+UNMEASURED = re.compile(r"(않았|못했)(다|습니다)\.?$")
+# 단서 문장: 결과를 깎아 읽으라는 문장. 같은 단서가 절마다 되풀이되면 처음과 결론 자리에만 둔다
+HEDGE = re.compile(r"(이 아니다|은 아니다|는 아니다|일 수 있다|낙관적|로 쓰지 않는다|뜻하지 않는다|보장은 아니|증명은 아니|대표하지 않는다)")
+NUMBER = re.compile(r"\d[\d,\.]*")
+
+
+def check_shorten_signals(lines, paras, n=12, min_paras=4, top=8):
+    """절 참조, 날짜, 미측정 문장, 숫자 밀도, 되풀이 구절을 센다."""
+    prose = [(i, l) for i, (k, l) in enumerate(lines, 1) if k in ("text", "list")]
+    chars = sum(len(re.sub(r"\s", "", l)) for _, l in prose) or 1
+    refs = [(i, m.group(0)) for i, l in prose for m in SECTION_REF.finditer(l)]
+    dates = [(i, m.group(0)) for i, l in prose for m in DATE.finditer(l)]
+    numbers = sum(len(NUMBER.findall(l)) for _, l in prose)
+    unmeasured, hedges = [], []
+    for i, p in paras:
+        for s in sentences(p):
+            if UNMEASURED.search(s.strip()):
+                unmeasured.append((i, s.strip()))
+            if HEDGE.search(s):
+                hedges.append((i, s.strip()))
+    # 되풀이 구절: 공백과 기호를 뺀 n글자 조각이 min_paras개 넘는 문단에 나오면, 같은 문단
+    # 집합을 유지하는 데까지 오른쪽으로 늘려 구절 하나로 만든다. 한글이 4자 안 되는 조각
+    # (파일 이름, 영어 용어)은 세지 않는다
+    index, pre = {}, {}
+    for i, p in paras:
+        t = re.sub(r"[^가-힣A-Za-z0-9]", "", p)
+        for k in range(len(t) - n + 1):
+            sh = t[k:k + n]
+            index.setdefault(sh, set()).add(i)
+    hot = {sh: ps for sh, ps in index.items() if len(ps) >= min_paras and len(re.findall(r"[가-힣]", sh)) >= 4}
+    for sh in hot:
+        pre.setdefault(sh[:-1], []).append(sh)
+    phrases = {}
+    for sh, ps in sorted(hot.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        phrase = sh
+        while True:
+            nxt = [c for c in pre.get(phrase[-(n - 1):], []) if hot[c] == ps]
+            if len(nxt) != 1 or len(phrase) > 60:
+                break
+            phrase += nxt[0][-1]
+        phrases[phrase] = ps
+    keep = [p for p in phrases if not any(p != q and p in q for q in phrases)]
+    repeats = sorted(((p, sorted(phrases[p])) for p in keep), key=lambda t: (-len(t[1]), t[0]))[:top]
+    return {"chars": chars, "refs": refs, "dates": dates, "numbers": numbers,
+            "unmeasured": unmeasured, "hedges": hedges, "repeats": repeats}
+
+
+def print_shorten_signals(lines, paras):
+    print()
+    print("## 13. 줄이기 신호 (경고, 긴 원고에서 본다)")
+    s = check_shorten_signals(lines, paras)
+    per = lambda n: n / s["chars"] * 1000
+    print(f"- 절 참조: {len(s['refs'])}건 (1,000자당 {per(len(s['refs'])):.1f}). 장 사이에만 둔다")
+    print(f"- 날짜: {len(s['dates'])}건. 작업 과정의 날짜는 지운다")
+    for i, d in s["dates"][:5]:
+        print(f"    {i}: {d}")
+    print(f"- 미측정 문장(~하지 않았다): {len(s['unmeasured'])}건 (1,000자당 {per(len(s['unmeasured'])):.1f}). "
+          "처음 나오는 자리와 미측정 항목 절에만 둔다")
+    for i, t in s["unmeasured"][:5]:
+        print(f"    {i}: {t[:60]}")
+    print(f"- 단서 문장(아니다, 수 있다, 쓰지 않는다): {len(s['hedges'])}건 (1,000자당 {per(len(s['hedges'])):.1f}). "
+          "같은 단서는 정의 자리, 결론 자리, 미측정 항목 절에만 둔다")
+    for i, t in s["hedges"][:5]:
+        print(f"    {i}: {t[:60]}")
+    print(f"- 숫자: {s['numbers']}개 (1,000자당 {per(s['numbers']):.1f}). 주장 하나에 한 쌍")
+    if s["repeats"]:
+        print(f"- 되풀이 구절(네 문단 이상): {len(s['repeats'])}건. 처음 한 번과 결론 자리에만 둔다")
+        for p, ps in s["repeats"]:
+            print(f"    {len(ps)}문단: {p[:40]}  (문단 {', '.join(str(i) for i in ps[:6])})")
+    else:
+        print("- 되풀이 구절(네 문단 이상): 없음")
+
+
 def print_document_checks(lines, args):
     print()
     print(f"## 9. 지시어 (경고, 앞 {args.dem_window}문단에 없는 명사)")
@@ -602,6 +688,7 @@ def print_document_checks(lines, args):
     print("## 12. 사실 대장 대조 (경고, 숫자는 사람이 확인)")
     if not args.facts:
         print("- 건너뜀 (--facts 사실대장.md로 켠다)")
+        print_shorten_signals(lines, paragraphs(lines))
         return
     f = check_facts(lines, args.facts)
     if not any(f.values()):
@@ -621,6 +708,7 @@ def print_document_checks(lines, args):
             print(f"    {i}: {x}")
         if len(f["unlisted"]) > 15:
             print(f"    ... 외 {len(f['unlisted']) - 15}건")
+    print_shorten_signals(lines, paragraphs(lines))
 
 
 def main():
