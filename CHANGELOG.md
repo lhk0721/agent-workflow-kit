@@ -33,6 +33,7 @@ by hand; a version without it needs only the rerun.
   the key a paragraph is picked whole as before, and its hover label says which key
   picks a line. From a banner manuscript whose paragraphs are 150 to 470 characters on
   one Markdown line each, where a paragraph selector named only the first 40 characters.
+  ([#36])
 
 ### Changed
 
@@ -69,7 +70,7 @@ by hand; a version without it needs only the rerun.
 - `report-figures` manuscript page: Shift-click in select mode adds a heading, paragraph, list
   or line to the selection. The browser turned the click into a text selection from
   the previous click, and the page ignores a click while text is selected, so only the
-  first selector was copied.
+  first selector was copied. ([#36])
 
 ## [0.2.13] — 2026-10-04
 
@@ -493,3 +494,4 @@ First release.
 [#33]: https://github.com/lhk0721/agent-workflow-kit/pull/33
 [#34]: https://github.com/lhk0721/agent-workflow-kit/pull/34
 [#35]: https://github.com/lhk0721/agent-workflow-kit/pull/35
+[#36]: https://github.com/lhk0721/agent-workflow-kit/pull/36
