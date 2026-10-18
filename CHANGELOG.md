@@ -26,6 +26,14 @@ by hand; a version without it needs only the rerun.
   "did not measure" sentences, hedge sentences, numbers per 1,000 characters and phrases
   repeated verbatim across four or more paragraphs. From a 93,574-character contest report the user could not
   read, cut to 51,457 over five pull requests. ([#34])
+- `report-figures` manuscript page: select mode picks one line of a paragraph. Holding
+  Ctrl (Cmd on a Mac) over a paragraph narrows the hover box to the line under the
+  pointer as the page wraps it, and a click copies a selector with the Markdown line or
+  lines it falls on, its line number in the paragraph and the whole line quoted. Without
+  the key a paragraph is picked whole as before, and its hover label says which key
+  picks a line. From a banner manuscript whose paragraphs are 150 to 470 characters on
+  one Markdown line each, where a paragraph selector named only the first 40 characters.
+  ([#36])
 
 ### Changed
 
@@ -56,6 +64,13 @@ by hand; a version without it needs only the rerun.
   stretched to the column, so the eleven narrow tables of a report, 2 to 5.6 inches wide,
   came out 1.5 to 4.2 times larger than the full-width ones, type included, while the
   paper copy was fine. ([#35])
+
+### Fixed
+
+- `report-figures` manuscript page: Shift-click in select mode adds a heading, paragraph, list
+  or line to the selection. The browser turned the click into a text selection from
+  the previous click, and the page ignores a click while text is selected, so only the
+  first selector was copied. ([#36])
 
 ## [0.2.13] — 2026-10-04
 
@@ -479,3 +494,4 @@ First release.
 [#33]: https://github.com/lhk0721/agent-workflow-kit/pull/33
 [#34]: https://github.com/lhk0721/agent-workflow-kit/pull/34
 [#35]: https://github.com/lhk0721/agent-workflow-kit/pull/35
+[#36]: https://github.com/lhk0721/agent-workflow-kit/pull/36
