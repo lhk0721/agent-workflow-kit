@@ -23,7 +23,10 @@ The page
                with an SVG next to its PNG, the matplotlib element under the pointer (text,
                bar, line, dot, tick, axis, legend, plot area) with its id path, text and
                position. Moving the pointer off a small element toward the figure's edge
-               selects the next larger group. Shift-click adds to the selection; Esc clears.
+               selects the next larger group. Holding Ctrl (Cmd on a Mac) over a paragraph
+               selects the line under the pointer as the page wraps it: the selector names
+               the Markdown line or lines it falls on and quotes the whole line. Shift-click
+               adds to the selection; Esc clears.
   Edit mode    only with --serve: click a heading, paragraph, list, table or caption to
                edit its Markdown source in place; Ctrl+Enter saves it to the file. The
                server rewrites only that block's lines and refuses when the block changed
@@ -66,6 +69,7 @@ FIG_REF_RE = re.compile(r"(그림|표|Figure|Table)\s?(\d+)")
 STRINGS = {
     "ko": {"copy": "요소 복사", "select": "요소 선택", "done": "복사 완료", "failed": "복사 실패",
            "selected": "selector {n}개 복사 완료", "missing": "파일 없음", "toc": "차례",
+           "row": "줄", "rowhint": "{key}로 줄 선택",
            "source": "원고", "made": "만든 때", "claim": "요점", "notes": "본문에 쓸 것",
            "heading": "제목", "section": "절", "para": "문단", "list": "목록", "table": "표",
            "quote": "인용", "code": "코드", "figure": "그림", "caption": "캡션", "path": "경로",
@@ -77,6 +81,7 @@ STRINGS = {
            "offline": "서버에 연결하지 못했습니다. manuscript_sheet.py --serve가 실행 중인지 확인하세요."},
     "en": {"copy": "Copy element", "select": "Select element", "done": "Copied", "failed": "Copy failed",
            "selected": "{n} selector(s) copied", "missing": "Missing file", "toc": "Contents",
+           "row": "line", "rowhint": "{key} for a line",
            "source": "Source", "made": "Built", "claim": "Claim", "notes": "In text",
            "heading": "heading", "section": "section", "para": "paragraph", "list": "list", "table": "table",
            "quote": "quote", "code": "code", "figure": "figure", "caption": "caption", "path": "path",
@@ -218,7 +223,7 @@ def parse(text: str, bases: list[Path]) -> list[dict]:
             blocks.append({"kind": "figure", "file": str(resolve(m.group(2), bases)), "label": None,
                            "caption": m.group(1).strip(), "claim": None, "notes": None, "line": start})
         else:
-            blocks.append({"kind": "para", "text": joined, "line": start})
+            blocks.append({"kind": "para", "text": joined, "parts": body, "line": start})
     if blocks and "end" not in blocks[-1]:
         blocks[-1]["end"] = n
     return blocks
@@ -390,6 +395,9 @@ def build(blocks: list[dict], title: str, source: str, lang: str, keep_number: b
             path_txt = f"{crumb} › " if crumb else ""
             item["sel"] = f'{where} · {path_txt}{t[k]} {counts[k]} · "{_clip(item["plain"].splitlines()[0] if item["plain"] else "")}"'
             if k == "para":
+                # one rendered line: JS fills in the Markdown line it starts on, its number and its text
+                item["sel_line"] = f'{source}:{{line}} · {path_txt}{t[k]} {counts[k]} › {t["row"]} {{n}} · "{{text}}"'
+                item["seg"] = [[b["line"] + j, len(inline_plain(x))] for j, x in enumerate(b.get("parts") or [b["text"]])]
                 body = f'<p class="el" data-k="para" data-i="{i}">{inline_html(b["text"], anchors)}</p>'
             elif k == "list":
                 tag = "ol" if b["ordered"] else "ul"
@@ -523,6 +531,7 @@ const LEAF = /^(text|patch|line2d|PathCollection|LineCollection|PolyCollection)_
 const GROUP = /^(figure|axes|matplotlib\.axis|xtick|ytick|legend|PathCollection|LineCollection|PolyCollection|text|patch)_\d+$/;
 const KIND = {figure: T.figure, axes: T.axes, xtick: T.xtick, ytick: T.ytick, legend: T.legend, text: T.text,
               patch: T.patch, line2d: T.line, PathCollection: T.points, LineCollection: T.lines, PolyCollection: T.patch};
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 let mode = "copy";
 try { mode = localStorage.getItem("manuscript-sheet-mode") || "copy"; } catch (e) {}
 
@@ -651,8 +660,44 @@ function partSelector(i, p, svg) {
   return `${DATA[i].sel} › ${chain.join(" › ")}${kind} · ${T.pos.replace("{x}", x).replace("{y}", y)}`;
 }
 
+// ---- lines of a paragraph, as the page wraps them ----
+const LINES = new Map();   // paragraph -> its lines relative to it; cleared on resize
+function linesOf(el) {
+  const p = el.getBoundingClientRect();
+  if (!LINES.has(el)) {
+    const out = [], range = document.createRange(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let off = 0, cur = null;
+    while (w.nextNode()) {
+      const node = w.currentNode, s = node.data;
+      for (let j = 0; j < s.length; j++, off++) {
+        range.setStart(node, j); range.setEnd(node, j + 1);
+        const r = range.getBoundingClientRect();
+        if (r.width || r.height) {   // collapsed white space has no box and stays on the line before it
+          if (!cur || (r.top + r.bottom) / 2 > cur.bottom) out.push(cur = {start: off, text: "", ...R(r)});
+          else Object.assign(cur, union(cur, R(r)));
+          cur.end = off + 1;
+        }
+        if (cur) cur.text += s[j];
+      }
+    }
+    LINES.set(el, out.map(l => ({start: l.start, end: l.end, text: l.text.replace(/\s+/g, " ").trim(),
+      left: l.left - p.left, top: l.top - p.top, right: l.right - p.left, bottom: l.bottom - p.top})));
+  }
+  return LINES.get(el).map(l => ({...l, left: l.left + p.left, top: l.top + p.top, right: l.right + p.left, bottom: l.bottom + p.top}));
+}
+function lineAt(lines, y) {   // the line whose band holds y; a band reaches halfway to the next line
+  for (let n = 0; n < lines.length; n++) if (n === lines.length - 1 || y < (lines[n].bottom + lines[n + 1].top) / 2) return n;
+  return -1;
+}
+function lineSelector(i, n, line) {
+  const d = DATA[i];
+  const source = off => { let at = d.seg[0][0], acc = 0; for (const [ln, len] of d.seg) { at = ln; acc += len + 1; if (off < acc) break; } return at; };
+  const a = source(line.start), b = source(line.end - 1);   // a paragraph hard-wrapped in the Markdown spans several lines
+  return d.sel_line.replace("{line}", () => a === b ? a : a + "-" + b).replace("{n}", () => n + 1).replace("{text}", () => line.text);
+}
+
 // ---- what is under the pointer ----
-function resolve(e) {
+function resolve(e, mod = e.ctrlKey || e.metaKey) {
   const t = e.target;
   if (!(t instanceof Element) || t.closest(".fab, nav, .meta, .editor")) return null;
   const brk = t.closest(".brk");
@@ -666,6 +711,11 @@ function resolve(e) {
   const el = t.closest(".el");
   if (!el) return null;
   const k = el.dataset.k, i = +el.dataset.i;
+  if (k === "para" && mode === "select") {
+    const n = mod ? lineAt(linesOf(el), e.clientY) : -1;
+    if (n >= 0) return {key: "l" + i + ":" + n, i, k: "row", rect: () => linesOf(el)[n], tip: T.row + " " + (n + 1), sel: () => lineSelector(i, n, linesOf(el)[n])};
+    return {key: k + i, i, k, rect: () => R(el.getBoundingClientRect()), tip: T[k] + " · " + T.rowhint.replace("{key}", MOD)};
+  }
   return {key: k + i, i, k, rect: () => R(el.getBoundingClientRect()), tip: T[k] || k};
 }
 let raf = 0, lastEv = null, current = null;
@@ -675,7 +725,7 @@ document.addEventListener("mousemove", e => { lastEv = e; if (!raf) raf = reques
 }); });
 document.addEventListener("mouseleave", hide);
 addEventListener("scroll", () => { if (current && !hoverBox.classList.contains("hidden")) place(hoverBox, current.rect(), current.tip); }, {passive: true});
-addEventListener("resize", () => { RECTS.clear(); for (const p of picked) place(p.box, p.target.rect(), ""); hide(); });
+addEventListener("resize", () => { RECTS.clear(); LINES.clear(); for (const p of picked) place(p.box, p.target.rect(), ""); hide(); });
 
 // ---- copy ----
 function section(i) {
@@ -715,7 +765,7 @@ async function copyTarget(r) {
 }
 function selectorOf(r) {
   const d = DATA[r.i];
-  if (r.k === "part") return r.sel();
+  if (r.sel) return r.sel();
   if (r.k === "section") return d.sel_sec;
   if (r.k === "caption") return d.sel_caption;
   if (r.k === "path") return d.sel_path;
@@ -758,6 +808,13 @@ document.addEventListener("click", async e => {
   catch (err) { console.error(err); toast(T.failed, true); }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !editing) clearPicked(); });
+for (const type of ["keydown", "keyup"]) document.addEventListener(type, e => {   // Ctrl switches paragraph and line without a move
+  if (mode !== "select" || !lastEv || (e.key !== "Control" && e.key !== "Meta")) return;
+  current = resolve(lastEv, type === "keydown");
+  if (current) place(hoverBox, current.rect(), current.tip); else hide();
+});
+// Shift- or Ctrl-click in select mode collects selectors; without this the browser turns it into a text selection
+document.addEventListener("mousedown", e => { if (mode === "select" && (e.shiftKey || e.ctrlKey || e.metaKey) && e.target instanceof Element && e.target.closest(".el")) e.preventDefault(); });
 
 // ---- edit (only on the --serve page) ----
 let editing = null, pendingReload = false;

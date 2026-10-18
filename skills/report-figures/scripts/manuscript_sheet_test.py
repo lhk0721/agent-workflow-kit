@@ -114,6 +114,15 @@ class ManuscriptSheetTest(unittest.TestCase):
         self.assertEqual(data[2]["sel"], 'report.md:6 · 1. 개요 › 문단 1 · "첫 문단은 굵게와 코드와 링크 a.md를 두 줄에 걸쳐 쓴다. 그림 1을…"')
         self.assertEqual(data[1]["sel_sec"], 'report.md:4-27 · 절 "1. 개요"')  # up to the line before "## 2. 다음"
 
+    def test_paragraph_carries_what_a_line_selector_needs(self):
+        _, _, data = self.page()
+        para = data[2]
+        self.assertEqual(para["sel_line"], 'report.md:{line} · 1. 개요 › 문단 1 › 줄 {n} · "{text}"')
+        # each Markdown line with the length of its rendered text, so the page finds the line a wrapped line falls on
+        self.assertEqual(para["seg"], [[6, len("첫 문단은 굵게와 코드와 링크 a.md를")], [7, len("두 줄에 걸쳐 쓴다. 그림 1을 본다.")]])
+        self.assertEqual(sum(n + 1 for _, n in para["seg"]) - 1, len(para["plain"]))
+        self.assertNotIn("sel_line", data[5])  # lists, tables and quotes are picked whole
+
     def test_sections_nest_by_heading_level(self):
         page, _, _ = self.page()
         self.assertEqual(page.count('<section class="sec'), 4)
