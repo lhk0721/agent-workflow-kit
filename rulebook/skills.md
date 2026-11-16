@@ -186,16 +186,23 @@ make. None of them commits — the pre-commit review gate stays with the user.
   so that branch, worktree, management doc and pointer line agree by construction.
 - Triggers: "이슈 만들어", "새 작업 시작", "worktree 파줘", "start issue", "new task".
 - `scripts/issue-start.mjs` (`--dry-run` prints every step and runs none):
-  `gh issue create` from the issue template → branch `<n>-<type>-<slug>` from
+  title check (`team_language`, no type prefix) → sidebar plan against the repo's
+  labels, milestones, issue types and issue fields → `gh issue create` from the issue
+  template with label, assignee, Type, Priority and the sub-issue link → branch `<n>-<type>-<slug>` from
   `base_branch` → worktree per `worktree_root`, or in `--path <dir>` (missing or empty;
   for a session stuck in an empty leftover directory) → management document from the full
   template inside the worktree → Master Registry row (skipped when `INDEX.md` is
   generated) → Recent Active Context pointer line → prints the `EnterWorktree` path,
   the dependency setup (`npm ci` / `uv sync`) and the first-commit command.
+- `scripts/issue-backfill.mjs` (plan by default, `--apply` to write): gives existing
+  issues, closed ones included, the Type and label of their kit type, read from the
+  management document or branch name; `--assign-mine` assigns you to your own
+  unassigned issues; `--set <n>=<type>` names a type no document records.
 - Does not: commit; call `EnterWorktree` (only the session can move itself); choose
-  between candidate issues — that judgment is `git-rules.md` "Choosing the issue".
+  between candidate issues — that judgment is `git-rules.md` "Choosing the issue";
+  choose the priority — it proposes one and the user corrects it.
 - Reads: `issue_first`, `branch_pattern`, `issues_root`, `worktree_root`, `base_branch`,
-  `issue_types`, `umbrella_issues`.
+  `issue_types`, `umbrella_issues`, `team_language`.
 
 ### post-pr-cleanup
 

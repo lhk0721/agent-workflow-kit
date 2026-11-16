@@ -35,6 +35,28 @@ by hand; a version without it needs only the rerun.
   one Markdown line each, where a paragraph selector named only the first 40 characters.
   ([#36])
 
+- `issue-start`: the issue is registered with its sidebar filled in. The script sets the
+  GitHub Type and one label from the kit type (`feature` → Feature + `enhancement`, `fix`
+  → Bug + `bug`, `docs` / `chore` / `refactor` / `perf` → Task + a label each, created
+  when the repo lacks it), the assignee (`@me` unless `--assignee`), the Priority issue
+  field, and the sub-issue link for `--parent`; `--label`, `--milestone` and `--project`
+  add the rest. Where a repo has a Priority field the script refuses to create the issue
+  until `--priority <option>` or `--priority none` is given, and every value is checked
+  against the repo before anything is created. `--issue <n>` fills only what is empty.
+  From a team repo where 30 of 33 issues read "No type, No labels, No one assigned".
+  ([#37])
+- `issue-start`: the title is checked before it is posted. A type prefix (`[DOCS]`,
+  `feat:`) is refused, and so is a title without Korean where `team_language` is `ko`
+  (or with Korean where it is `en`); `--title-ok` posts it as written. The skill and
+  `git-rules.md` say what a title is for: what changes, in the team's language, readable
+  in the list without opening the issue. From a `team_language: ko` repo whose issues
+  were titled `[DOCS] Update backend/README.md after root README overhaul`. ([#37])
+- `issue-start`: new script `issue-backfill.mjs` gives existing issues, closed ones
+  included, the Type and label of their kit type. The type is read from the management
+  document or branch name `<n>-<type>-<slug>`, never guessed from a title; it only adds,
+  plans by default and writes with `--apply`. `--assign-mine` assigns you to your own
+  unassigned issues, `--set <n>=<type>` names a type no document records. ([#37])
+
 ### Changed
 
 - README: "How it works" starts at the request gate (a question is answered in place; a
@@ -495,3 +517,4 @@ First release.
 [#34]: https://github.com/lhk0721/agent-workflow-kit/pull/34
 [#35]: https://github.com/lhk0721/agent-workflow-kit/pull/35
 [#36]: https://github.com/lhk0721/agent-workflow-kit/pull/36
+[#37]: https://github.com/lhk0721/agent-workflow-kit/pull/37

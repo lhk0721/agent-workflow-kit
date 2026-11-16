@@ -1,11 +1,12 @@
 ---
 name: issue-start
-description: Start tracked work the kit way — one script registers the GitHub issue, creates the branch and worktree from the REMOTE base ref, and seeds the management doc, Master Registry row and AGENTS.md pointer line. Use this whenever the user wants to begin work that is not yet tracked by an open issue, even when they only say "let's fix X" or "add Y" — and always when they say "이슈 만들어", "새 작업 시작", "새 이슈로", "worktree 파줘", "브랜치 파줘", "start issue", "new task", "open an issue for", "create a branch for", "set up a worktree for". In a kit repo (agent-system.yaml present) never hand-run gh issue create / git worktree add for new work; run this skill's script instead — it does the steps in the only order the rulebook allows.
+description: Start tracked work the kit way — one script registers the GitHub issue with its sidebar filled in (Type, label, assignee, Priority, sub-issue link), creates the branch and worktree from the REMOTE base ref, and seeds the management doc, Master Registry row and AGENTS.md pointer line. A second script gives old issues, closed ones included, the Type and label they were registered without ("이슈에 type 달아줘", "label 정리", "backfill issue types"). Use this whenever the user wants to begin work that is not yet tracked by an open issue, even when they only say "let's fix X" or "add Y" — and always when they say "이슈 만들어", "새 작업 시작", "새 이슈로", "worktree 파줘", "브랜치 파줘", "start issue", "new task", "open an issue for", "create a branch for", "set up a worktree for". In a kit repo (agent-system.yaml present) never hand-run gh issue create / git worktree add for new work; run this skill's script instead — it does the steps in the only order the rulebook allows.
 ---
 
 # issue-start
 
-Every issue in a kit repo begins with the same five steps: register the issue, name the
+Every issue in a kit repo begins with the same five steps: register the issue — title a
+teammate can read in the list, sidebar filled in — name the
 branch after it, create a worktree from the remote base, seed the management doc + registry
 row + AGENTS.md pointer, make the first commit. Done by hand they drift (branch named before
 the issue exists, worktree cut from a stale local `main`, pointer forgotten). The script does
@@ -31,38 +32,112 @@ reads the title from GitHub.
 ## Sequence
 
 1. Check the work is not already tracked: `gh issue list --state open --search "<key words>"`.
-2. Agree the pieces with the user: `type` (from `issue_types`), a short `title` in the
-   repo's `team_language`, and a `slug` (lowercase English words; the script normalises it).
+2. Agree the pieces with the user: `type` (from `issue_types`), a `title` (see "The
+   title" below), and a `slug` (lowercase English words; the script normalises it).
    With umbrella issues enabled, ask which umbrella this belongs to → `--parent <n>`.
-3. Dry run first and show the plan:
+3. Decide the sidebar — every line of it, not only the ones with a default ("The sidebar"
+   below). Type, the type label and the assignee follow from what you already agreed.
+   Priority, extra labels, milestone and project need a decision: propose a value with a
+   one-line reason and let the user correct it; do not leave one empty because nobody
+   asked.
+4. Dry run first and show the plan, the `metadata` block included:
 
    ```
-   node .claude/skills/issue-start/scripts/issue-start.mjs --dry-run --type <t> --title "<title>" --slug <slug> [--parent <n>]
+   node .claude/skills/issue-start/scripts/issue-start.mjs --dry-run --type <t> --title "<title>" --slug <slug> [--parent <n>] [--priority <option>] [--label <name>]... [--milestone "<title>"] [--project "<title>"] [--assignee <login>]
    ```
 
-4. Run it for real (same command without `--dry-run`). It prints a summary block.
-5. Move in with the `EnterWorktree` tool using the `path:` from the summary — the worktree
+5. Run it for real (same command without `--dry-run`). It prints a summary block; a
+   `NOT SET` line in its `metadata` block names something GitHub refused — set it by hand
+   or tell the user, do not drop it.
+6. Move in with the `EnterWorktree` tool using the `path:` from the summary — the worktree
    already exists. Never let `EnterWorktree` create one: it would branch from a local ref,
    and the rulebook wants the remote base.
-6. Install what the summary lists under "prerequisites". A fresh worktree is a clean
+7. Install what the summary lists under "prerequisites". A fresh worktree is a clean
    checkout: `node_modules`, `.venv`, `.env` are gitignored and did not come along. Run
    installs inside the worktree. Never link `node_modules` from the main checkout — a
    junction there is followed by `git worktree remove` and by `npm ci`, and wipes the main
    checkout's dependencies (three incidents in one repo).
-7. If the summary says `docs/agent-workflow/repo-templates.md` exists, the repo has its own
+8. If the summary says `docs/agent-workflow/repo-templates.md` exists, the repo has its own
    richer doc shape that predates the kit. Reshape the seeded doc to it before the first
    commit — keep the filename, the `Document Relations` facts and the first work-log section.
-8. Fill `Summary`, `Goal`, `Scope`, `Out Of Scope`, `Done Criteria` from the conversation.
+9. Fill `Summary`, `Goal`, `Scope`, `Out Of Scope`, `Done Criteria` from the conversation.
    The template leaves them empty on purpose; a doc with placeholder text is worse than none.
-9. Pre-Commit Review Gate: show the user the seeded files (doc, registry, `AGENTS.md`), wait
+10. Pre-Commit Review Gate: show the user the seeded files (doc, registry, `AGENTS.md`), wait
    for explicit approval, then make the first commit inside the worktree with the command
    the summary printed (`chore: <title> (#<n>)`). One commit, nothing batched. If the
    summary lists `dropped:` lines, say so — those were pointers for branches that no longer
    exist, and this first commit is the sanctioned place to remove them.
-10. Remember the pointer's exit: before opening the PR, remove this branch's line from
+11. Remember the pointer's exit: before opening the PR, remove this branch's line from
     `AGENTS.md` as the branch's **last** commit (`git-rules.md`, post-PR gate). A PR-only
     base branch cannot take that edit after the merge; `post-pr-cleanup` will only report
     it as a leftover.
+
+## The title
+
+The title is what teammates read in the issue list, without opening the issue. Write it
+for that reader:
+
+- In the repo's `team_language`. For `ko`, write the Korean phrase from scratch (the
+  `ko-writing` rules apply) — not an English title, not a translated one. Identifiers and
+  technical terms stay as they are: `README에 state와 R 항목 설명 넣기`,
+  `SAC로 조준기 학습하기`.
+- Say what changes, in words the team uses: `viewer 스타일을 CSS module로 나누기`, not
+  `viewer 리팩터링`. Someone scanning forty rows should be able to tell this one apart.
+- No type prefix — no `[DOCS]`, no `feat:`. The Type field and the label carry the type;
+  repeated at the start of every row it only pushes the content to the right.
+  (`<type>: <summary> (#n)` is the commit subject, not the issue title.)
+
+The script refuses a title with a type prefix, and a title in the wrong language for
+`team_language: ko` / `en`. `--title-ok` posts it as written, for the rare title that is
+all identifiers.
+
+## The sidebar
+
+An issue registered with only a title shows `No type · No labels · No one assigned` in the
+list, and forty such rows cannot be scanned or filtered. The script fills the sidebar
+when it creates the issue, and stops before creating anything when a value is wrong.
+
+| Sidebar line | Value | Flag |
+| --- | --- | --- |
+| Assignees | the person starting the work (`@me`) | `--assignee <login>`, `--assignee none` |
+| Type | from the kit type: `feature` → Feature, `fix` → Bug, the others → Task | `--issue-type <name>` |
+| Labels | one per kit type: `feature` → `enhancement`, `fix` → `bug`, `docs` → `documentation`, `perf` → `performance`, others by their own name; created when the repo lacks it | `--label <name>` adds more (repeatable; the label must exist) |
+| Priority (issue field) | **required** when the repo has a Priority field | `--priority <option>`, `--priority none` |
+| Milestone | empty unless given; the dry run lists the open ones | `--milestone "<title>"` |
+| Projects | empty unless given; `gh` needs the `project` scope | `--project "<title>"` |
+| Relationships | the parent, linked as a sub-issue | `--parent <n>` |
+| Development | nothing to set here — the PR links itself with `Closes #<n>` in its body | |
+
+Priority is the one value nobody can derive, so ask yourself what happens if this waits:
+blocks other work or a deadline → the highest options; ordinary planned work → the
+middle one; cleanup that can wait → the lowest. Say which you chose and why in the plan
+you show the user.
+
+Extra labels are the repo's own vocabulary (an area, a kind of run). Read the list once
+(`gh label list`) and attach the ones that apply; do not invent a label inside this flow.
+
+Types exist only in organization repos and issue fields only where the organization
+defined them. Where one is missing the script says `(not set — …)` and goes on.
+
+With `--issue <n>` the script fills only what is still empty on that issue.
+
+## Old issues that were registered empty
+
+Closed issues take a type and labels like open ones. One script fills them from what the
+kit already wrote down — the management document or branch `<n>-<type>-<slug>` — and
+guesses nothing from a title:
+
+```
+node .claude/skills/issue-start/scripts/issue-backfill.mjs                  # plan only
+node .claude/skills/issue-start/scripts/issue-backfill.mjs --apply [--assign-mine] [--set <n>=<type>]... [--state open|closed]
+```
+
+Show the user the plan before `--apply`: it edits issues other people opened. It only
+adds — an issue that has a type keeps it, no label is removed. `--assign-mine` assigns
+you to issues you opened that have nobody assigned; it never assigns a teammate (that
+sends them a notification). Issues with no document and no branch are listed and left
+alone: ask their owner, or name the type with `--set <n>=<type>`. Priority is not
+backfilled — it describes work that is still ahead.
 
 ## What the script does — and does not
 
@@ -72,8 +147,13 @@ Does, in this order, and rolls back the worktree and branch if any later step fa
   `profile`, `issue_first`) — kit defaults when the file is missing
 - `git fetch --prune`, then resolves the base: `--base` > `base_branch` > `origin/HEAD`
   (`upstream/<name>` for the `external` profile). Always a remote ref.
-- `gh issue create --title --body-file` with the kit issue-body template (`### Goal`,
-  `### Done criteria`, `### Umbrella` when `--parent`) and reads the number from the URL
+- checks the title and plans the sidebar against what the repo offers (labels, open
+  milestones, issue types, issue fields); a wrong value stops the run here, before
+  anything exists
+- `gh issue create --title --body-file --label --assignee [--milestone] [--project]` with
+  the kit issue-body template (`### Goal`, `### Done criteria`, `### Umbrella` when
+  `--parent`) and reads the number from the URL; then sets the Type, the Priority field
+  and the sub-issue link, which `gh issue create` has no flag for
 - checks `git branch --list '<n>-*'` AND `git branch -r --list '*/<n>-*'`; aborts on a hit
 - `git worktree add --no-track <path> -b <n>-<type>-<slug> <base>`; sibling root →
   `../<repo>-<n>`, claude root → `.claude/worktrees/<n>-<first-two-slug-words>`, `--path`
@@ -88,8 +168,7 @@ Does, in this order, and rolls back the worktree and branch if any later step fa
   and, in the same edit, drops pointers whose branch exists neither locally nor on a remote
   — the summary lists each dropped line
 
-Does not: commit (the review gate is yours), push, link sub-issues on GitHub, install
-dependencies, or edit anything in the main checkout — every file change lands in the new
+Does not: commit (the review gate is yours), push, install dependencies, or edit anything in the main checkout — every file change lands in the new
 worktree.
 
 `--dry-run` prints the whole plan and creates nothing, not even the issue.
@@ -104,9 +183,8 @@ seeded files before the first commit; do not describe the commit as done until i
 ## Umbrella issues
 
 `--parent <n>` writes `Sub-issue of #n` into the issue body and `- Umbrella: #n` into the
-doc. The GitHub sub-issue link itself is a separate step the script does not take (it
-needs the child's database id, not its number); the summary prints the `gh api` command.
-Run it when the user wants the link, or leave it for the umbrella's owner.
+doc, and links the issue under the parent on GitHub (the Relationships line of the
+sidebar). When the link fails the summary prints the `gh api` command to run by hand.
 
 ## When the session is stuck in an empty directory
 

@@ -15,8 +15,9 @@ import {
   parseConfig, parseArgs, slugify, branchName, resolveType, worktreePath, fillTemplate,
   registryRow, appendRegistryRow, racLine, insertRacPointer, listRacPointers, removeRacLines,
   refreshRac, detectPrereqs, issueBody, parseIssueNumber, firstCommitCommand, resolveBaseRef,
-  targetProblem,
+  targetProblem, githubTypeFor, labelFor, titleProblem, planMetadata, metadataLines,
 } from './issue-start.mjs';
+import { parseArgs as backfillArgs, typesFromNames, planIssue } from './issue-backfill.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 let n = 0;
@@ -50,9 +51,121 @@ test('parseConfig: block lists, inline lists, booleans, comments, defaults', () 
 // ---- args ----
 test('parseArgs: flags, values, errors', () => {
   const a = parseArgs(['--type', 'docs', '--title', 'x y', '--slug', 'try', '--dry-run', '--parent', '3']);
-  assert.deepEqual(a, { dryRun: true, type: 'docs', title: 'x y', slug: 'try', parent: '3' });
+  assert.deepEqual(a, { dryRun: true, labels: [], type: 'docs', title: 'x y', slug: 'try', parent: '3' });
   assert.throws(() => parseArgs(['--type']), /needs a value/);
   assert.throws(() => parseArgs(['--bogus']), /unknown argument/);
+  const b = parseArgs(['--label', 'training', '--label', 'viewer', '--priority', 'High', '--assignee', 'none', '--title-ok']);
+  assert.deepEqual(b.labels, ['training', 'viewer']);
+  assert.equal(b.priority, 'High');
+  assert.equal(b.assignee, 'none');
+  assert.equal(b.titleOk, true);
+  assert.throws(() => parseArgs(['--label']), /needs a value/);
+});
+
+// ---- issue metadata ----
+test('githubTypeFor + labelFor: kit type -> GitHub Type and label', () => {
+  const avail = ['Task', 'Bug', 'Feature'];
+  assert.equal(githubTypeFor('feature', avail), 'Feature');
+  assert.equal(githubTypeFor('fix', avail), 'Bug');
+  for (const t of ['docs', 'chore', 'refactor', 'perf', 'experiment']) assert.equal(githubTypeFor(t, avail), 'Task');
+  assert.equal(githubTypeFor('fix', ['task', 'bug']), 'bug');       // the repo's own spelling wins
+  assert.equal(githubTypeFor('feature', ['Task', 'Bug']), null);     // no such type: not set
+  assert.equal(labelFor('feature').name, 'enhancement');
+  assert.equal(labelFor('feat').name, 'enhancement');
+  assert.equal(labelFor('fix').name, 'bug');
+  assert.equal(labelFor('docs').name, 'documentation');
+  assert.equal(labelFor('perf').name, 'performance');
+  assert.equal(labelFor('chore').name, 'chore');
+  assert.equal(labelFor('experiment').name, 'experiment');           // a repo's own type labels as itself
+});
+
+test('titleProblem: type prefixes and the wrong language are refused', () => {
+  assert.match(titleProblem('[DOCS] Update backend/README.md', 'ko'), /type prefix/);
+  assert.match(titleProblem('[CHORE] pre-commit 훅 추가', 'ko'), /type prefix/);
+  assert.match(titleProblem('feat: 로그인 화면', 'ko'), /type prefix/);
+  assert.match(titleProblem('fix(viewer): crash', 'en'), /type prefix/);
+  assert.match(titleProblem('Update backend README', 'ko'), /no Korean/);
+  assert.match(titleProblem('로그인 화면 추가', 'en'), /contains Korean/);
+  assert.equal(titleProblem('README에 state와 R 항목 설명 넣기', 'ko'), null);
+  assert.equal(titleProblem('SAC로 조준기 학습하기', 'ko'), null);
+  assert.equal(titleProblem('Login form keeps the email after a failed attempt', 'en'), null);
+  assert.equal(titleProblem('Formulaire de connexion', 'fr'), null);  // other languages are not checked
+  assert.equal(titleProblem('fixture: 테스트 자료 정리', 'ko'), null); // a word, not a type prefix
+});
+
+const META = {
+  reachable: true,
+  labels: ['bug', 'documentation', 'enhancement', 'training'],
+  milestones: ['v1'],
+  issueTypes: ['Task', 'Bug', 'Feature'],
+  fields: [{ id: 'F1', name: 'Priority', options: [{ id: 'O1', name: 'High' }, { id: 'O2', name: 'Low' }] }, { id: 'F2', name: 'Start date' }],
+};
+test('planMetadata: type, labels, assignee, priority, milestone', () => {
+  const ok = planMetadata({ args: { labels: ['Training'], priority: 'low' }, kitType: 'chore', meta: META });
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.plan.issueType, 'Task');
+  assert.deepEqual(ok.plan.labels, ['chore', 'training']);
+  assert.equal(ok.plan.createLabel.name, 'chore');                   // missing kit label gets created
+  assert.equal(ok.plan.assignee, '@me');
+  assert.deepEqual(ok.plan.priority, { fieldId: 'F1', optionId: 'O2', name: 'Low' });
+  assert.match(ok.plan.notes.milestone, /open milestones: v1/);
+
+  const fix = planMetadata({ args: { labels: [], priority: 'none', assignee: 'none', milestone: 'V1', issueType: 'task' }, kitType: 'fix', meta: META });
+  assert.deepEqual(fix.problems, []);
+  assert.equal(fix.plan.issueType, 'Task');                           // --issue-type overrides the mapping
+  assert.equal(fix.plan.createLabel, null);
+  assert.equal(fix.plan.assignee, null);
+  assert.equal(fix.plan.priority, null);
+  assert.equal(fix.plan.milestone, 'v1');
+});
+
+test('planMetadata: what stops the run before an issue exists', () => {
+  const p = (args) => planMetadata({ args: { labels: [], ...args }, kitType: 'feature', meta: META }).problems.join('\n');
+  assert.match(p({}), /has a Priority field — pass --priority <High\|Low>/);
+  assert.match(p({ priority: 'urgent' }), /not one of \[High, Low\]/);
+  assert.match(p({ priority: 'low', labels: ['trainng'] }), /--label 'trainng' does not exist/);
+  assert.match(p({ priority: 'low', milestone: 'v9' }), /not an open milestone/);
+  assert.match(p({ priority: 'low', issueType: 'Epic' }), /--issue-type 'Epic'/);
+});
+
+test('planMetadata: a repo without types or fields skips those lines', () => {
+  const bare = { reachable: true, labels: ['bug'], milestones: [], issueTypes: null, fields: null };
+  const r = planMetadata({ args: { labels: [], priority: 'High' }, kitType: 'fix', meta: bare });
+  assert.deepEqual(r.problems, []);                                  // no Priority field: nothing to require
+  assert.equal(r.plan.issueType, null);
+  assert.equal(r.plan.createLabel, null);
+  const text = metadataLines(r.plan, { parent: '12' }).join('\n');
+  assert.match(text, /type\s+\(not set — this repo has no issue types/);
+  assert.match(text, /priority\s+\(not set — --priority High ignored/);
+  assert.match(text, /parent\s+#12/);
+});
+
+// ---- backfill ----
+test('backfill: types come from doc and branch names, never from titles', () => {
+  const known = ['feature', 'fix', 'docs', 'chore'];
+  const t = typesFromNames([
+    'docs/issues/fix/54-fix-run-created-at-kst.md', 'docs/issues/README.md', 'origin/31-feature-neural-flight',
+    '18-refactor-viewer-css', 'origin/248-fix-x', 'docs/issues/feat/7-feat-turret.md', 'origin/HEAD', 'main',
+  ], known);
+  assert.deepEqual(t, { 54: 'fix', 31: 'feature', 248: 'fix', 7: 'feature' });   // refactor is not in this repo's types
+  assert.equal(48 in t, false);
+  assert.deepEqual(backfillArgs(['--apply', '--set', '31=feature', '--set', '#9=docs', '--state', 'closed']),
+    { apply: true, state: 'closed', assignMine: false, set: { 31: 'feature', 9: 'docs' } });
+  assert.throws(() => backfillArgs(['--set', 'x']), /<issue>=<type>/);
+});
+
+test('backfill: only what is empty gets filled', () => {
+  const ctx = { types: { 1: 'feature', 2: 'fix', 3: 'docs' }, available: ['Task', 'Bug', 'Feature'], viewer: 'me', assignMine: true };
+  const a = planIssue({ number: 1, title: 't', author: 'me', type: null, labels: [], assignees: [] }, ctx);
+  assert.deepEqual([a.setType, a.addLabel, a.assign], ['Feature', 'enhancement', 'me']);
+  const b = planIssue({ number: 2, title: 't', author: 'mate', type: 'Task', labels: ['Bug'], assignees: [] }, ctx);
+  assert.deepEqual([b.setType, b.addLabel, b.assign, b.change], [null, null, null, false]);   // a chosen type stays; a teammate is not assigned
+  const c = planIssue({ number: 3, title: 't', author: 'me', type: null, labels: ['training'], assignees: ['mate'] }, ctx);
+  assert.deepEqual([c.setType, c.addLabel, c.assign], ['Task', 'documentation', null]);
+  const d = planIssue({ number: 9, title: 't', author: 'me', type: null, labels: [], assignees: [] }, { ...ctx, assignMine: false });
+  assert.deepEqual([d.kitType, d.change], [null, false]);                           // unknown type: left alone
+  const e = planIssue({ number: 1, title: 't', author: 'me', type: null, labels: [], assignees: [] }, { ...ctx, available: null, assignMine: false });
+  assert.deepEqual([e.setType, e.addLabel], [null, 'enhancement']);                 // no issue types: label only
 });
 
 // ---- branch name ----
