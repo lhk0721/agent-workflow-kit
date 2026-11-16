@@ -316,7 +316,7 @@ own skills beside them, and update never touches those. Details and config files
 
 | Skill | Use it when |
 | --- | --- |
-| [`issue-start`](skills/issue-start/SKILL.md) | Work is about to start that no open issue tracks. One script registers the issue, creates the branch and worktree from the remote base, and seeds the management doc, registry row and `AGENTS.md` pointer. |
+| [`issue-start`](skills/issue-start/SKILL.md) | Work is about to start that no open issue tracks. One script registers the issue with a title in the team's language and its sidebar filled in (Type, label, assignee, Priority, sub-issue link), creates the branch and worktree from the remote base, and seeds the management doc, registry row and `AGENTS.md` pointer. `issue-backfill.mjs` gives older issues the Type and label they were registered without. |
 | [`post-pr-cleanup`](skills/post-pr-cleanup/SKILL.md) | A pull request merged. Classifies every worktree and branch and, after you confirm, removes only what provably landed. |
 | [`session-handoff`](skills/session-handoff/SKILL.md) | A session may end with work in flight. Writes the note a fresh session needs: what runs where, what is confirmed, the next steps in order. |
 | [`ui-evidence`](skills/ui-evidence/SKILL.md) | A UI change needs proof. Screenshots at desktop and 390px phone width over headless Chrome, with an overflow verdict and console errors, as a Markdown table for the PR. |

@@ -15,6 +15,9 @@
 Sub-issue of #<umbrella-issue>.
 ```
 
+The title and the sidebar (assignee, Type, labels, Priority, milestone, project, parent)
+are part of registering the issue: `git-rules.md`, "Registering the issue".
+
 ## Management document — full — `<issues_root>/<type>/<branch>.md`
 
 Default for issue work: anything that will take more than one commit. The work log

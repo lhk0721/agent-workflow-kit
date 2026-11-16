@@ -8,7 +8,13 @@
 //   node .claude/skills/issue-start/scripts/issue-start.mjs \
 //     --type feature --title "Login form" --slug login-form [--parent 12] \
 //     [--issue 34] [--body-file f] [--base origin/main] [--worktree-root sibling|claude]
-//     [--path <dir>] [--dry-run]
+//     [--path <dir>] [--assignee <login>|none] [--label <name>]... [--priority <option>|none]
+//     [--milestone <title>] [--project <title>] [--issue-type <name>] [--title-ok] [--dry-run]
+//
+// The issue is registered with its sidebar filled in, not only a title: Type and a label
+// from the kit type, an assignee (the person starting the work unless told otherwise), the
+// Priority field when the repo has one, the sub-issue link when --parent is given. An
+// issue list where every row reads "No type / No labels / No one" cannot be scanned.
 //
 // --path puts the worktree in <dir> instead of the worktree_root layout. <dir> must be
 // missing or empty; its use is a Claude Code session stuck in an empty leftover directory.
@@ -77,12 +83,21 @@ export const loadConfig = (path = 'agent-system.yaml') =>
 // Pure helpers (unit-tested in issue-start.test.mjs without git or gh).
 // ---------------------------------------------------------------------------------
 export function parseArgs(argv) {
-  const out = { dryRun: false };
+  const out = { dryRun: false, labels: [] };
   const takes = { '--type': 'type', '--title': 'title', '--slug': 'slug', '--parent': 'parent',
-    '--body-file': 'bodyFile', '--issue': 'issue', '--base': 'base', '--worktree-root': 'worktreeRoot', '--path': 'path' };
+    '--body-file': 'bodyFile', '--issue': 'issue', '--base': 'base', '--worktree-root': 'worktreeRoot', '--path': 'path',
+    '--assignee': 'assignee', '--priority': 'priority', '--milestone': 'milestone', '--project': 'project',
+    '--issue-type': 'issueType' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') { out.dryRun = true; continue; }
+    if (a === '--title-ok') { out.titleOk = true; continue; }
+    if (a === '--label') {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('--')) throw new Error('--label needs a value');
+      out.labels.push(v);
+      continue;
+    }
     if (a === '--help' || a === '-h') { out.help = true; continue; }
     if (a in takes) {
       const v = argv[++i];
@@ -271,6 +286,132 @@ export function detectPrereqs(dir, exists = existsSync) {
   return out;
 }
 
+// ---- issue metadata (pure) ----
+// The kit type decides the GitHub issue Type and one label. Types exist only where the
+// owner is an organization that enabled them; the label works everywhere. Both are set
+// because they answer different questions in the list: Type has three values (new
+// behaviour, a defect, or upkeep), the label keeps docs / chore / refactor / perf apart.
+const GITHUB_TYPE = { feature: 'Feature', feat: 'Feature', fix: 'Bug' };
+export function githubTypeFor(kitType, available = []) {
+  const want = GITHUB_TYPE[kitType] || 'Task';
+  return available.find((n) => n.toLowerCase() === want.toLowerCase()) || null;
+}
+// GitHub's default label names where one exists, so a repo keeps one label per meaning.
+const KIT_LABELS = {
+  feature: { name: 'enhancement', color: 'a2eeef', description: 'New feature or request' },
+  fix: { name: 'bug', color: 'd73a4a', description: "Something isn't working" },
+  docs: { name: 'documentation', color: '0075ca', description: 'Improvements or additions to documentation' },
+  chore: { name: 'chore', color: 'c5def5', description: 'Upkeep that changes no behaviour' },
+  refactor: { name: 'refactor', color: 'd4c5f9', description: 'Restructuring that changes no behaviour' },
+  perf: { name: 'performance', color: 'fbca04', description: 'Faster or lighter, same behaviour' },
+};
+export function labelFor(kitType) {
+  const t = kitType === 'feat' ? 'feature' : kitType;
+  return KIT_LABELS[t] || { name: t, color: 'ededed', description: `Issue type '${t}' (agent-system.yaml: issue_types)` };
+}
+
+// A title is read in the issue list, by teammates, without opening the issue. Two things
+// made the lists of kit repos hard to scan: a type prefix repeated on every row
+// ("[DOCS] ...", which the Type column and the label already say) and an English title
+// in a team that reads Korean. Both are refused here; --title-ok is the way out for the
+// rare title that is all identifiers.
+const TYPE_PREFIX = /^\s*(\[[^\]]{1,20}\]|(feat|feature|fix|docs|chore|refactor|perf|test|style|repo)(\([^)]*\))?!?:)\s*/i;
+export function titleProblem(title, lang) {
+  const t = String(title || '');
+  const m = t.match(TYPE_PREFIX);
+  if (m) return `title starts with a type prefix (${m[0].trim()}) — the type goes in the Type field and the label; start with what changes`;
+  const l = String(lang || '').toLowerCase();
+  const hangul = /[\uAC00-\uD7A3]/.test(t);
+  if (l.startsWith('ko') && !hangul) return 'team_language is ko but the title has no Korean — write what changes as a Korean phrase (identifiers and technical terms stay as they are)';
+  if (l.startsWith('en') && hangul) return 'team_language is en but the title contains Korean';
+  return null;
+}
+
+// Case-insensitive match of a wanted name against the names GitHub knows.
+export const pickName = (names, want) =>
+  names.find((n) => n.toLowerCase() === String(want).toLowerCase()) || null;
+
+// Everything the sidebar will hold, decided before the issue exists. `meta` is what the
+// repo offers (null where GitHub could not be asked); a problem stops the run while
+// nothing has been created yet.
+export function planMetadata({ args, kitType, meta }) {
+  const problems = [];
+  const plan = { notes: {} };
+
+  // type
+  if (!meta.issueTypes) {
+    plan.issueType = null;
+    plan.notes.type = '(not set — this repo has no issue types; GitHub offers them to organization repos)';
+  } else {
+    const want = args.issueType ? pickName(meta.issueTypes, args.issueType) : githubTypeFor(kitType, meta.issueTypes);
+    if (args.issueType && !want) problems.push(`--issue-type '${args.issueType}' is not one of [${meta.issueTypes.join(', ')}]`);
+    plan.issueType = want || null;
+    if (!want) plan.notes.type = `(not set — none of [${meta.issueTypes.join(', ')}] matches)`;
+  }
+
+  // labels: the kit label is created when missing; a --label must already exist (a typo
+  // would otherwise mint a new label).
+  const kit = labelFor(kitType);
+  plan.labels = [kit.name];
+  plan.createLabel = meta.labels && !pickName(meta.labels, kit.name) ? kit : null;
+  for (const l of args.labels || []) {
+    const hit = meta.labels ? pickName(meta.labels, l) : l;
+    if (!hit) problems.push(`--label '${l}' does not exist in this repo [${meta.labels.join(', ')}] — fix the name, or create it first (gh label create)`);
+    else if (!plan.labels.includes(hit)) plan.labels.push(hit);
+  }
+
+  // assignee: whoever starts the work, unless told otherwise.
+  const a = args.assignee || '@me';
+  plan.assignee = a.toLowerCase() === 'none' ? null : a;
+  if (!plan.assignee) plan.notes.assignee = '(not set — --assignee none)';
+
+  // priority: required where the repo has the field, so it is decided and not skipped.
+  const field = meta.fields ? meta.fields.find((f) => f.name.toLowerCase() === 'priority' && f.options) : null;
+  const wanted = args.priority && args.priority.toLowerCase() !== 'none' ? args.priority : null;
+  plan.priority = null;
+  if (!field) {
+    plan.notes.priority = wanted
+      ? `(not set — --priority ${wanted} ignored: this repo has no Priority issue field)`
+      : '(not set — this repo has no Priority issue field)';
+  } else if (!args.priority) {
+    problems.push(`this repo has a Priority field — pass --priority <${field.options.map((o) => o.name).join('|')}>, or --priority none to leave it empty`);
+  } else if (!wanted) {
+    plan.notes.priority = '(not set — --priority none)';
+  } else {
+    const opt = field.options.find((o) => o.name.toLowerCase() === wanted.toLowerCase());
+    if (!opt) problems.push(`--priority '${wanted}' is not one of [${field.options.map((o) => o.name).join(', ')}]`);
+    else plan.priority = { fieldId: field.id, optionId: opt.id, name: opt.name };
+  }
+
+  // milestone: optional, but an open one when given.
+  plan.milestone = null;
+  if (args.milestone) {
+    const hit = meta.milestones ? pickName(meta.milestones, args.milestone) : args.milestone;
+    if (!hit) problems.push(`--milestone '${args.milestone}' is not an open milestone [${meta.milestones.join(', ') || 'none open'}]`);
+    else plan.milestone = hit;
+  } else if (meta.milestones && meta.milestones.length) {
+    plan.notes.milestone = `(not set — open milestones: ${meta.milestones.join(', ')}; pass --milestone "<title>" when the work belongs to one)`;
+  } else plan.notes.milestone = '(not set — the repo has no open milestone)';
+
+  plan.project = args.project || null;
+  if (!plan.project) plan.notes.project = "(not set — pass --project \"<title>\" when the team tracks work on a project board; gh needs the 'project' scope)";
+  return { plan, problems };
+}
+
+export function metadataLines(plan, { parent } = {}) {
+  const row = (k, v) => `    ${k.padEnd(13)}${v}`;
+  return [
+    row('type', plan.issueType || plan.notes.type),
+    row('labels', plan.labels.join(', ') + (plan.createLabel ? `   (label '${plan.createLabel.name}' is new in this repo — it gets created)` : '')),
+    row('assignee', plan.assignee || plan.notes.assignee),
+    row('priority', plan.priority ? plan.priority.name : plan.notes.priority),
+    row('milestone', plan.milestone || plan.notes.milestone),
+    row('project', plan.project || plan.notes.project),
+    row('parent', parent ? `#${parent} (linked as a sub-issue)` : '(none)'),
+    row('development', 'the PR links itself: its body says "Closes #<n>"'),
+  ];
+}
+
 // Kit issue-body template (rulebook/templates.md). The body is English: agent-read.
 export function issueBody({ title, parent }) {
   let b = `### Goal\n${title}\n\n### Done criteria\n- [ ] ...\n`;
@@ -310,7 +451,57 @@ const norm = (p) => p.replaceAll('\\', '/');
 
 const USAGE = `usage: node issue-start.mjs --type <t> --title "<title>" --slug <desc>
          [--parent <n>] [--body-file <f>] [--issue <n>] [--base <ref>]
-         [--worktree-root sibling|claude] [--path <dir>] [--dry-run]`;
+         [--worktree-root sibling|claude] [--path <dir>]
+         [--assignee <login>|none] [--label <name>]... [--priority <option>|none]
+         [--milestone <title>] [--project <title>] [--issue-type <name>] [--title-ok]
+         [--dry-run]`;
+
+// gh prints the data and still exits non-zero when a GraphQL answer carries errors next
+// to it, so the output of a failed call is parsed too.
+export function ghJson(args, cwd) {
+  let out;
+  try { out = sh('gh', args, { cwd }); } catch (e) { out = e.stdout ? String(e.stdout) : ''; }
+  try { return JSON.parse(out); } catch { return null; }
+}
+
+// What the repo offers for the sidebar. Each part is asked on its own and is null when
+// GitHub cannot answer (a user-owned repo has no issue types, an older server has no
+// issue fields, no network), so a missing feature skips one line instead of stopping.
+export function loadRepoMeta(cwd) {
+  const gql = (inner) => ghJson(['api', 'graphql', '-F', 'owner={owner}', '-F', 'name={repo}', '-f',
+    `query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){${inner}}}`], cwd);
+  const repo = gql('labels(first:100){nodes{name}} milestones(first:50,states:OPEN){nodes{title}}')?.data?.repository;
+  const typeNodes = gql('issueTypes(first:50){nodes{name isEnabled}}')?.data?.repository?.issueTypes?.nodes;
+  const fieldNodes = gql('issueFields(first:50){nodes{__typename ... on IssueFieldSingleSelect{id name options{id name}}}}')?.data?.repository?.issueFields?.nodes;
+  return {
+    reachable: !!repo,
+    labels: repo ? repo.labels.nodes.map((n) => n.name) : null,
+    milestones: repo ? repo.milestones.nodes.map((n) => n.title) : null,
+    issueTypes: typeNodes && typeNodes.length ? typeNodes.filter((n) => n.isEnabled !== false).map((n) => n.name) : null,
+    fields: fieldNodes ? fieldNodes.filter((n) => n && n.id) : null,
+  };
+}
+
+export const ensureLabel = (label, cwd) =>
+  tryRun('gh', ['label', 'create', label.name, '--color', label.color, '--description', label.description], { cwd }) !== null;
+
+// gh issue create has no --type; the REST issue object takes the type by name.
+export const setIssueType = (issue, typeName, cwd) =>
+  tryRun('gh', ['api', '-X', 'PATCH', `repos/{owner}/{repo}/issues/${issue}`, '-f', `type=${typeName}`, '--silent'], { cwd }) !== null;
+
+function setPriority(issue, priority, cwd) {
+  const id = tryRun('gh', ['issue', 'view', String(issue), '--json', 'id', '-q', '.id'], { cwd });
+  if (!id) return false;
+  const q = 'mutation($issue:ID!,$field:ID!,$opt:ID!){setIssueFieldValue(input:{issueId:$issue,issueFields:[{fieldId:$field,singleSelectOptionId:$opt}]}){clientMutationId}}';
+  const r = ghJson(['api', 'graphql', '-f', 'query=' + q, '-f', `issue=${id}`, '-f', `field=${priority.fieldId}`, '-f', `opt=${priority.optionId}`], cwd);
+  return !!r && !r.errors;
+}
+
+function linkSubIssue(parent, issue, cwd) {
+  const dbId = tryRun('gh', ['api', `repos/{owner}/{repo}/issues/${issue}`, '--jq', '.id'], { cwd });
+  if (!dbId) return false;
+  return tryRun('gh', ['api', '-X', 'POST', `repos/{owner}/{repo}/issues/${parent}/sub_issues`, '-F', `sub_issue_id=${dbId}`, '--silent'], { cwd }) !== null;
+}
 
 function printPrereqs(prereqs) {
   console.log('  2. prerequisites a fresh worktree lacks (gitignored; git does not copy them):');
@@ -378,6 +569,21 @@ function main() {
   if (!title) fail('--title is required (or pass --issue <n> so the title can be read from GitHub)');
   if (args.parent && !/^\d+$/.test(args.parent)) fail('--parent must be an issue number');
   if (args.issue && !/^\d+$/.test(args.issue)) fail('--issue must be an issue number');
+  // A reused issue keeps the title it has; a new one is checked before it is posted.
+  if (!args.issue && !args.titleOk) {
+    const p = titleProblem(title, cfg.team_language);
+    if (p) fail(p + '\n  (--title-ok posts it as written)');
+  }
+
+  // Sidebar: what the repo offers, and what this issue gets. Decided here, while nothing
+  // exists yet — a wrong label or a missing priority must not leave an issue behind.
+  const meta = loadRepoMeta(mainRoot);
+  if (!meta.reachable) {
+    if (args.dryRun) console.warn('issue-start: GitHub did not answer (gh missing, not logged in, or offline) — the metadata plan below is unchecked');
+    else fail('GitHub did not answer (is gh installed and logged in? does the repo have a GitHub remote?)');
+  }
+  const { plan, problems } = planMetadata({ args, kitType: type === 'feat' ? 'feature' : type, meta });
+  if (problems.length) fail(problems.join('\nissue-start: '));
 
   const templatePath = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'management-doc-template.md');
   if (!existsSync(templatePath)) fail(`template missing: ${templatePath}`);
@@ -403,7 +609,8 @@ function main() {
     console.log(`  management doc  ${wt}/${docPath}`);
     console.log(`  registry        ${registryFile ? registryFile + '  +1 row' : '(INDEX.md exists — registry row skipped)'}`);
     console.log(`  AGENTS.md       ${existsSync(join(mainRoot, 'AGENTS.md')) ? 'pointer line under ## Recent Active Context' : '(missing in repo — pointer skipped)'}`);
-    if (args.parent) console.log(`  umbrella        Sub-issue of #${args.parent} (body line only; GitHub sub-issue link is a manual step)`);
+    console.log(`  metadata${args.issue ? '        (reused issue: only what is still empty gets filled)' : ''}`);
+    for (const l of metadataLines(plan, { parent: args.parent })) console.log(l);
     if (richTemplate) console.log('  repo template   docs/agent-workflow/repo-templates.md exists — adapt the seeded doc to it before the first commit');
     console.log('\n  issue body:\n' + (args.bodyFile ? readFileSync(args.bodyFile, 'utf8') : issueBody({ title, parent: args.parent })).replace(/^/gm, '    '));
     console.log(`  sibling-branch check would run: git branch --list '${n}-*'  |  git branch -r --list '*/${n}-*'`);
@@ -415,6 +622,7 @@ function main() {
   // ---- 1. issue ----
   let issue = args.issue ? Number(args.issue) : null;
   let issueUrl = null;
+  const metaFailed = [];
   if (!issue) {
     let bodyFile = args.bodyFile;
     let tmp = null;
@@ -423,7 +631,13 @@ function main() {
       bodyFile = join(tmp, 'body.md');
       writeFileSync(bodyFile, issueBody({ title, parent: args.parent }));
     }
-    const out = tryRun('gh', ['issue', 'create', '--title', title, '--body-file', bodyFile], { cwd: mainRoot, stdio: ['ignore', 'pipe', 'inherit'] });
+    if (plan.createLabel && !ensureLabel(plan.createLabel, mainRoot)) fail(`could not create the label '${plan.createLabel.name}' (gh label create) — create it by hand, then rerun`);
+    const createArgs = ['issue', 'create', '--title', title, '--body-file', bodyFile];
+    for (const l of plan.labels) createArgs.push('--label', l);
+    if (plan.assignee) createArgs.push('--assignee', plan.assignee);
+    if (plan.milestone) createArgs.push('--milestone', plan.milestone);
+    if (plan.project) createArgs.push('--project', plan.project);
+    const out = tryRun('gh', createArgs, { cwd: mainRoot, stdio: ['ignore', 'pipe', 'inherit'] });
     if (tmp) rmSync(tmp, { recursive: true, force: true });
     if (out === null) fail('gh issue create failed (is gh installed and logged in? does the repo have a GitHub remote?)');
     issue = parseIssueNumber(out);
@@ -432,6 +646,37 @@ function main() {
     console.log(`issue-start: created issue #${issue}  ${issueUrl || ''}`);
   } else {
     issueUrl = tryRun('gh', ['issue', 'view', String(issue), '--json', 'url', '-q', '.url'], { cwd: mainRoot });
+    // A reused issue was often opened by hand with an empty sidebar: fill what is empty,
+    // leave what someone already chose.
+    const cur = ghJson(['issue', 'view', String(issue), '--json', 'labels,assignees,milestone'], mainRoot) || {};
+    const edit = ['issue', 'edit', String(issue)];
+    if (plan.createLabel && !ensureLabel(plan.createLabel, mainRoot)) metaFailed.push(`label '${plan.createLabel.name}': gh label create failed`);
+    const have = (cur.labels || []).map((l) => l.name);
+    for (const l of plan.labels) if (!have.includes(l)) edit.push('--add-label', l);
+    if (plan.assignee && !(cur.assignees || []).length) edit.push('--add-assignee', plan.assignee);
+    if (plan.milestone && !cur.milestone) edit.push('--milestone', plan.milestone);
+    if (plan.project) edit.push('--add-project', plan.project);
+    if (edit.length > 3 && tryRun('gh', edit, { cwd: mainRoot }) === null) metaFailed.push(`labels/assignee/milestone/project: gh ${edit.join(' ')}`);
+  }
+
+  // Type, priority and the sub-issue link have no flag on gh issue create. A failure here
+  // is reported, not fatal: the issue exists and the branch can start.
+  const typeNow = args.issue
+    ? ghJson(['api', `repos/{owner}/{repo}/issues/${issue}`, '--jq', '{type: (.type.name // null)}'], mainRoot)?.type
+    : null;
+  if (plan.issueType && !typeNow && !setIssueType(issue, plan.issueType, mainRoot)) {
+    metaFailed.push(`type: gh api -X PATCH repos/{owner}/{repo}/issues/${issue} -f type=${plan.issueType}`);
+  }
+  if (typeNow) plan.issueType = typeNow;
+  if (plan.priority && !setPriority(issue, plan.priority, mainRoot)) metaFailed.push(`priority: set '${plan.priority.name}' in the issue sidebar`);
+  let parentLinked = false;
+  if (args.parent) {
+    parentLinked = linkSubIssue(args.parent, issue, mainRoot);
+    // Linking twice answers 422; an issue that already sits under the parent is fine.
+    if (!parentLinked) {
+      const p = ghJson(['api', `repos/{owner}/{repo}/issues/${issue}/parent`, '--jq', '{number}'], mainRoot);
+      parentLinked = !!p && String(p.number) === String(args.parent);
+    }
   }
 
   // ---- 2. branch name + sibling check (local AND remote) ----
@@ -504,6 +749,9 @@ function main() {
     console.log(`  registry        ${registryNote}`);
     console.log(`  AGENTS.md       ${racNote}`);
     for (const l of dropped) console.log(`                  dropped: ${l}`);
+    console.log('  metadata');
+    for (const l of metadataLines(plan, { parent: parentLinked ? args.parent : null })) console.log(l);
+    for (const l of metaFailed) console.log(`    NOT SET      ${l}`);
     console.log('\nnext:');
     console.log(`  1. move in:  EnterWorktree  path: ${wt}`);
     console.log('     (the worktree exists — never let EnterWorktree create one; it would branch from a local ref)');
@@ -515,8 +763,8 @@ function main() {
     console.log(`       ${firstCommitCommand(title, issue)}`);
     console.log("  5. before opening the PR, remove this pointer line from AGENTS.md as the branch's LAST commit (git-rules.md):");
     console.log('     a PR-only base branch cannot take that edit after the merge, and post-pr-cleanup only reports leftovers');
-    if (args.parent) {
-      console.log(`  6. umbrella: the issue body says "Sub-issue of #${args.parent}"; the GitHub sub-issue link is a separate step:`);
+    if (args.parent && !parentLinked) {
+      console.log(`  6. umbrella: the issue body says "Sub-issue of #${args.parent}", but the GitHub sub-issue link failed — link it by hand:`);
       console.log(`       gh api -X POST repos/{owner}/{repo}/issues/${args.parent}/sub_issues -F sub_issue_id=$(gh api repos/{owner}/{repo}/issues/${issue} --jq .id)`);
     }
   } catch (e) {

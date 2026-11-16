@@ -42,6 +42,23 @@
   feature work stacks on the new layout. Feature commits that already accumulated on it
   are reapplied onto the merged base, not extended.
 
+### Registering the issue
+
+- Title: in `team_language`, what changes, in words a teammate can tell apart in the
+  issue list without opening the issue. No type prefix (`[DOCS]`, `feat:`) — the Type
+  field and the label carry the type. For `ko`, write the Korean phrase from scratch;
+  identifiers and technical terms stay as they are.
+- Sidebar: an issue is registered with its assignee, Type and type label set, the
+  Priority field where the repo has one, the parent linked when it is a sub-issue, and
+  milestone / project when the work belongs to one. `issue-start` sets them and refuses
+  to create the issue when Priority is undecided; an issue opened by hand gets the same
+  lines.
+- Kit type → GitHub: `feature` → Type Feature, label `enhancement`; `fix` → Bug, `bug`;
+  `docs` → Task, `documentation`; `perf` → Task, `performance`; other types → Task and
+  a label of their own name.
+- Issues registered before this rule: `issue-backfill.mjs` (`skills.md`) fills Type and
+  label from the management document or branch name, closed issues included.
+
 ### Choosing the issue
 
 - Reuse an open issue only when it is materially the same work item — title, goal, done
